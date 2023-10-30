@@ -3,31 +3,30 @@ package main
 import (
 	"os"
 
+	v1 "github.com/iljarotar/hybrid-scaler/api/v1"
 	hs "github.com/iljarotar/hybrid-scaler/internal/controller"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var (
-	log    = logf.Log.WithName("hybridscaler-controller")
+	log    = ctrl.Log.WithName("hybridscaler-controller")
 	scheme = runtime.NewScheme()
 )
 
 func init() {
 	utilruntime.Must(appsv1.AddToScheme(scheme))
-	logf.SetLogger(zap.New())
+	utilruntime.Must(v1.AddToScheme(scheme))
 }
 
 func main() {
+	ctrl.SetLogger(zap.New())
 	log.Info("starting hybridscaler controller")
 
 	mgr, err := manager.New(config.GetConfigOrDie(), manager.Options{
@@ -38,19 +37,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	hybridScalerController, err := controller.New("hybridscaler-controller", mgr, controller.Options{
-		Reconciler: &hs.HybridScalerReconciler{
-			Client: mgr.GetClient(),
-		},
-	})
+	err = (&hs.HybridScalerReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)
 	if err != nil {
 		log.Error(err, "unable to register controller")
-		os.Exit(1)
-	}
-
-	err = hybridScalerController.Watch(source.Kind(mgr.GetCache(), &appsv1.Deployment{}), &handler.EnqueueRequestForObject{})
-	if err != nil {
-		log.Error(err, "unable to watch deployments")
 		os.Exit(1)
 	}
 
