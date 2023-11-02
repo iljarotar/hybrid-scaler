@@ -1,0 +1,124 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: hybridscalers.scaling.autoscaling.custom
+spec:
+  group: scaling.autoscaling.custom
+  names:
+    kind: HybridScaler
+    listKind: HybridScalerList
+    plural: hybridscalers
+    singular: hybridscaler
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: HybridScaler is the Schema for the hybridscalers API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: HybridScalerSpec defines the desired state of HybridScaler
+            properties:
+              maxReplicas:
+                format: int32
+                type: integer
+              minReplicas:
+                format: int32
+                type: integer
+              resourcePolicy:
+                properties:
+                  controlledResources:
+                    items:
+                      description: ResourceName is the name identifying various resources
+                        in a ResourceList.
+                      type: string
+                    type: array
+                  maxAllowed:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: ResourceList is a set of (resource name, quantity)
+                      pairs.
+                    type: object
+                  minAllowed:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: ResourceList is a set of (resource name, quantity)
+                      pairs.
+                    type: object
+                type: object
+              scaleTargetRef:
+                description: CrossVersionObjectReference contains enough information
+                  to let you identify the referred resource.
+                properties:
+                  apiVersion:
+                    description: apiVersion is the API version of the referent
+                    type: string
+                  kind:
+                    description: 'kind is the kind of the referent; More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                    type: string
+                  name:
+                    description: 'name is the name of the referent; More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+            required:
+            - maxReplicas
+            - minReplicas
+            - resourcePolicy
+            - scaleTargetRef
+            type: object
+          status:
+            description: HybridScalerStatus defines the observed state of HybridScaler
+            properties:
+              cpuUtilization:
+                format: int32
+                type: integer
+              currentReplicas:
+                format: int32
+                type: integer
+              memoryUtilization:
+                format: int32
+                type: integer
+              requestRate:
+                format: int32
+                type: integer
+              responseTime:
+                format: int32
+                type: integer
+            required:
+            - cpuUtilization
+            - currentReplicas
+            - memoryUtilization
+            - requestRate
+            - responseTime
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

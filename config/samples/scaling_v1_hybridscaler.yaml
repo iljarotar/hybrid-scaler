@@ -1,0 +1,12 @@
+apiVersion: scaling.autoscaling.custom/v1
+kind: HybridScaler
+metadata:
+  labels:
+    app.kubernetes.io/name: hybridscaler
+    app.kubernetes.io/instance: hybridscaler-sample
+    app.kubernetes.io/part-of: hybrid-scaler
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: hybrid-scaler
+  name: hybridscaler-sample
+spec:
+  # TODO(user): Add fields here

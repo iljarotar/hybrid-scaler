@@ -1,0 +1,31 @@
+# permissions for end users to edit hybridscalers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: hybridscaler-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: hybrid-scaler
+    app.kubernetes.io/part-of: hybrid-scaler
+    app.kubernetes.io/managed-by: kustomize
+  name: hybridscaler-editor-role
+rules:
+- apiGroups:
+  - scaling.autoscaling.custom
+  resources:
+  - hybridscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scaling.autoscaling.custom
+  resources:
+  - hybridscalers/status
+  verbs:
+  - get
