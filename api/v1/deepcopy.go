@@ -1,6 +1,7 @@
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -13,11 +14,50 @@ func (in *HybridScaler) DeepCopyInto(out *HybridScaler) {
 }
 
 func (in *HybridScalerSpec) DeepCopyInto(out *HybridScalerSpec) {
-	// TODO: implement
+	*out = *in
+	in.ScaleTargetRef.DeepCopyInto(&out.ScaleTargetRef)
+	in.ResourcePolicy.DeepCopyInto(&out.ResourcePolicy)
+	if in.MinReplicas != nil {
+		in, out := &in.MinReplicas, &out.MinReplicas
+		*out = new(int32)
+		**out = **in
+	}
+	if in.MaxReplicas != nil {
+		in, out := &in.MaxReplicas, &out.MaxReplicas
+		*out = new(int32)
+		**out = **in
+	}
+}
+
+func (in *ResourcePolicy) DeepCopyInto(out *ResourcePolicy) {
+	*out = *in
+	if in.MinAllowed != nil {
+		in, out := &in.MinAllowed, &out.MinAllowed
+		*out = make(corev1.ResourceList, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val.DeepCopy()
+		}
+	}
+	if in.MaxAllowed != nil {
+		in, out := &in.MaxAllowed, &out.MaxAllowed
+		*out = make(corev1.ResourceList, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val.DeepCopy()
+		}
+	}
+	if in.ControlledResources != nil {
+		in, out := &in.ControlledResources, &out.ControlledResources
+		*out = new([]corev1.ResourceName)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make([]corev1.ResourceName, len(*in))
+			copy(*out, *in)
+		}
+	}
 }
 
 func (in *HybridScalerStatus) DeepCopyInto(out *HybridScalerStatus) {
-	// TODO: implement
+	*out = *in
 }
 
 func (in *HybridScalerList) DeepCopyInto(out *HybridScalerList) {
@@ -47,6 +87,15 @@ func (in *HybridScalerSpec) DeepCopy() *HybridScalerSpec {
 		return nil
 	}
 	out := new(HybridScalerSpec)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *ResourcePolicy) DeepCopy() *ResourcePolicy {
+	if in == nil {
+		return nil
+	}
+	out := new(ResourcePolicy)
 	in.DeepCopyInto(out)
 	return out
 }

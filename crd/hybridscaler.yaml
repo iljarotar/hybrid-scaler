@@ -4,6 +4,12 @@ metadata:
   name: hybridscalers.autoscaling.custom
 spec:
   group: autoscaling.custom
+  names:
+    kind: HybridScaler
+    singular: hybridscaler
+    plural: hybridscalers
+    shortNames: [hs]
+  scope: Namespaced
   versions:
     - name: v1
       served: true
@@ -12,10 +18,24 @@ spec:
         openAPIV3Schema:
           type: object
           properties:
-            # TODO: add spec
-  names:
-    kind: HybridScaler
-    singular: hybridscaler
-    plural: hybridscalers
-    shortNames: [hs]
-  scope: Namespaced
+            spec:
+              type: object
+              properties:
+                scaleTargetRef:
+                  type: object
+                  properties:
+                    kind: 
+                      type: string
+                    name:
+                      type: string
+                    apiVersion:
+                      type:
+                        string
+                minReplicas:
+                  type: integer
+                  format: int32
+                maxReplicas:
+                  type: integer
+                  format: int32
+                resourcePolicy:
+                  type: object
