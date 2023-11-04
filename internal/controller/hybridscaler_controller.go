@@ -23,10 +23,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
+)
+
+var (
+	ownerKey    = ".metadata.controller"
+	apiGVString = scalingv1.GroupVersion.String()
 )
 
 // HybridScalerReconciler reconciles a HybridScaler object
@@ -49,17 +53,35 @@ type HybridScalerReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.0/pkg/reconcile
 func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	var scaler scalingv1.HybridScaler
+	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	var deployments appsv1.DeploymentList
+	if err := r.List(ctx, &deployments, client.InNamespace(req.Namespace), client.MatchingFields{"metadata.Name": scaler.Spec.ScaleTargetRef.Name}); err != nil {
+		logger.Error(err, "unable to fetch deployments")
+		return ctrl.Result{}, err
+	}
+
+	logger.Info("reconcile", "deployments", deployments, "number", len(deployments.Items))
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HybridScalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &appsv1.Deployment{}, "metadata.Name", func(rawObj client.Object) []string {
+		deployment := rawObj.(*appsv1.Deployment)
+
+		return []string{deployment.ObjectMeta.Name}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&scalingv1.HybridScaler{}).
-		Watches(&appsv1.Deployment{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
