@@ -20,17 +20,22 @@ import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
 )
 
 var (
-	ownerKey    = ".metadata.controller"
-	apiGVString = scalingv1.GroupVersion.String()
+	ownerKey                    = ".metadata.controller"
+	apiGVString                 = scalingv1.GroupVersion.String()
+	reconciliationSourceChannel = make(chan event.GenericEvent)
 )
 
 // HybridScalerReconciler reconciles a HybridScaler object
@@ -55,33 +60,52 @@ type HybridScalerReconciler struct {
 func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// FIXME: doesn't work as expected - needs to log "deployment not found" on deletion of deployment
 	var scaler scalingv1.HybridScaler
 	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
+		if !errors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+
+		var scalers scalingv1.HybridScalerList
+		if error := r.List(ctx, &scalers); error != nil {
+			return ctrl.Result{}, err
+		}
+
+		var deployment appsv1.Deployment
+		if err := r.Get(ctx, req.NamespacedName, &deployment); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+
+		for _, s := range scalers.Items {
+			if s.Spec.ScaleTargetRef.Name == deployment.ObjectMeta.Name {
+				reconciliationSourceChannel <- event.GenericEvent{Object: &s}
+			}
+		}
+
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	var deployments appsv1.DeploymentList
-	if err := r.List(ctx, &deployments, client.InNamespace(req.Namespace), client.MatchingFields{"metadata.Name": scaler.Spec.ScaleTargetRef.Name}); err != nil {
-		logger.Error(err, "unable to fetch deployments")
+	var deployment appsv1.Deployment
+	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: scaler.Spec.ScaleTargetRef.Name}, &deployment); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("deployment not found", "name", scaler.Spec.ScaleTargetRef.Name)
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("reconcile", "deployments", deployments, "number", len(deployments.Items))
+	logger.Info("reconcile", "deployment", deployment)
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HybridScalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &appsv1.Deployment{}, "metadata.Name", func(rawObj client.Object) []string {
-		deployment := rawObj.(*appsv1.Deployment)
-
-		return []string{deployment.ObjectMeta.Name}
-	}); err != nil {
-		return err
-	}
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&scalingv1.HybridScaler{}).
+		Watches(&appsv1.Deployment{}, &handler.EnqueueRequestForObject{}).
+		WatchesRawSource(&source.Channel{Source: reconciliationSourceChannel}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }
