@@ -60,7 +60,8 @@ type HybridScalerReconciler struct {
 func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// FIXME: doesn't work as expected - needs to log "deployment not found" on deletion of deployment
+	logger.Info("reconcile", "req", req)
+
 	var scaler scalingv1.HybridScaler
 	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
 		if !errors.IsNotFound(err) {
@@ -72,13 +73,8 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 
-		var deployment appsv1.Deployment
-		if err := r.Get(ctx, req.NamespacedName, &deployment); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-		}
-
 		for _, s := range scalers.Items {
-			if s.Spec.ScaleTargetRef.Name == deployment.ObjectMeta.Name {
+			if s.Spec.ScaleTargetRef.Name == req.Name {
 				reconciliationSourceChannel <- event.GenericEvent{Object: &s}
 			}
 		}
@@ -89,7 +85,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var deployment appsv1.Deployment
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: scaler.Spec.ScaleTargetRef.Name}, &deployment); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("deployment not found", "name", scaler.Spec.ScaleTargetRef.Name)
+			logger.Error(err, "deployment not found", "name", scaler.Spec.ScaleTargetRef.Name)
 			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 
