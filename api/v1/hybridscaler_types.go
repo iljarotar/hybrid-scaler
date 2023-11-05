@@ -34,18 +34,22 @@ type HybridScalerSpec struct {
 }
 
 type ResourcePolicy struct {
-	MinAllowed          corev1.ResourceList    `json:"minAllowed,omitempty" protobuf:"bytes,3,rep,name=minAllowed,casttype=ResourceList,castkey=ResourceName"`
-	MaxAllowed          corev1.ResourceList    `json:"maxAllowed,omitempty" protobuf:"bytes,4,rep,name=maxAllowed,casttype=ResourceList,castkey=ResourceName"`
-	ControlledResources *[]corev1.ResourceName `json:"controlledResources,omitempty" patchStrategy:"merge" protobuf:"bytes,5,rep,name=controlledResources"`
+	MinAllowed          corev1.ResourceList    `json:"minAllowed"`
+	MaxAllowed          corev1.ResourceList    `json:"maxAllowed"`
+	ControlledResources *[]corev1.ResourceName `json:"controlledResources"`
 }
 
 // HybridScalerStatus defines the observed state of HybridScaler
 type HybridScalerStatus struct {
-	CurrentReplicas   int32 `json:"currentReplicas"`
-	CpuUtilization    int32 `json:"cpuUtilization"`
-	MemoryUtilization int32 `json:"memoryUtilization"`
-	RequestRate       int32 `json:"requestRate"`
-	ResponseTime      int32 `json:"responseTime"`
+	Replicas                   int32               `json:"replicas"`
+	Requests                   corev1.ResourceList `json:"requests"`
+	Limits                     corev1.ResourceList `json:"limits"`
+	CpuUtilization             int32               `json:"cpuUtilization"`
+	MemoryUtilization          int32               `json:"memoryUtilization"`
+	ResourceUtilizationEntropy int32               `json:"resourceUtilizationEntropy"`
+
+	// TODO: maybe instead of ResponseTime use a threshold on the resource utilization that shouldn't be exceeded and use this as a performance criterion
+	ResponseTime int32 `json:"responseTime"`
 }
 
 //+kubebuilder:object:root=true

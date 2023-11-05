@@ -68,6 +68,10 @@ spec:
                     description: ResourceList is a set of (resource name, quantity)
                       pairs.
                     type: object
+                required:
+                - controlledResources
+                - maxAllowed
+                - minAllowed
                 type: object
               scaleTargetRef:
                 description: CrossVersionObjectReference contains enough information
@@ -98,23 +102,46 @@ spec:
               cpuUtilization:
                 format: int32
                 type: integer
-              currentReplicas:
-                format: int32
-                type: integer
+              limits:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: ResourceList is a set of (resource name, quantity) pairs.
+                type: object
               memoryUtilization:
                 format: int32
                 type: integer
-              requestRate:
+              replicas:
+                format: int32
+                type: integer
+              requests:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: ResourceList is a set of (resource name, quantity) pairs.
+                type: object
+              resourceUtilizationEntropy:
                 format: int32
                 type: integer
               responseTime:
+                description: 'TODO: maybe instead of ResponseTime use a threshold
+                  on the resource utilization that shouldn''t be exceeded and use
+                  this as a performance criterion'
                 format: int32
                 type: integer
             required:
             - cpuUtilization
-            - currentReplicas
+            - limits
             - memoryUtilization
-            - requestRate
+            - replicas
+            - requests
+            - resourceUtilizationEntropy
             - responseTime
             type: object
         type: object
