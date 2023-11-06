@@ -24,7 +24,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -33,14 +35,14 @@ import (
 )
 
 var (
-	ownerKey    = ".metadata.controller"
-	apiGVString = scalingv1.GroupVersion.String()
+	ownerKey = ".metadata.controller"
 )
 
 // HybridScalerReconciler reconciles a HybridScaler object
 type HybridScalerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme           *runtime.Scheme
+	MetricsClientset *metrics.Clientset
 }
 
 //+kubebuilder:rbac:groups=scaling.autoscaling.custom,resources=hybridscalers,verbs=get;list;watch;create;update;patch;delete
@@ -60,7 +62,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	logger := log.FromContext(ctx)
 	requeuePeriod := 15 * time.Second
 
-	logger.Info("reconcile", "req", req)
+	logger.Info("Reconcile", "req", req)
 
 	var scaler scalingv1.HybridScaler
 	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
@@ -86,20 +88,80 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	scaler.Status.Requests = requests
 	scaler.Status.Limits = limits
 
-	// TODO: get current cpu and memory utilization of all pods and calculate their entropy
+	var replicaSets appsv1.ReplicaSetList
+	if err := r.List(ctx, &replicaSets, client.InNamespace(req.Namespace), client.MatchingFields{ownerKey: deployment.Name}); err != nil {
+		return ctrl.Result{}, err
+	}
 
-	// TODO: find a way to get an average of the response time of all pods or maybe find a better benchmark for measuring performance
+	pods := make([]corev1.Pod, 0)
 
-	logger.Info("reconcile", "scaler status", scaler.Status)
+	for _, rs := range replicaSets.Items {
+		var podList corev1.PodList
+		if err := r.List(ctx, &podList, client.InNamespace(req.Namespace), client.MatchingFields{ownerKey: rs.Name}); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		pods = append(pods, podList.Items...)
+	}
+
+	// FIXME: get pod metrics for a single pod returns only namespace and name
+	for range pods {
+		podMetrics, err := r.MetricsClientset.MetricsV1beta1().PodMetricses(req.Namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		logger.Info("metrics", "podMetrics", podMetrics)
+	}
 
 	return ctrl.Result{RequeueAfter: requeuePeriod}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HybridScalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := addIndices(mgr); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&scalingv1.HybridScaler{}).
 		Complete(r)
+}
+
+func addIndices(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &appsv1.ReplicaSet{}, ownerKey, func(rawObj client.Object) []string {
+		replicaSet := rawObj.(*appsv1.ReplicaSet)
+		owner := metav1.GetControllerOf(replicaSet)
+		if owner == nil {
+			return nil
+		}
+
+		if owner.Kind != "Deployment" {
+			return nil
+		}
+
+		return []string{owner.Name}
+	}); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, ownerKey, func(rawObj client.Object) []string {
+		pod := rawObj.(*corev1.Pod)
+		owner := metav1.GetControllerOf(pod)
+		if owner == nil {
+			return nil
+		}
+
+		if owner.Kind != "ReplicaSet" {
+			return nil
+		}
+
+		return []string{owner.Name}
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func getResourcesFromContainers(containers []corev1.Container) (requests, limits corev1.ResourceList) {
