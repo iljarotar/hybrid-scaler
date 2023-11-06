@@ -105,8 +105,11 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// FIXME: get pod metrics for a single pod returns only namespace and name
-	for range pods {
-		podMetrics, err := r.MetricsClientset.MetricsV1beta1().PodMetricses(req.Namespace).List(ctx, metav1.ListOptions{})
+	for _, pod := range pods {
+		podMetrics, err := r.MetricsClientset.MetricsV1beta1().PodMetricses(req.Namespace).Get(ctx, pod.Name, metav1.GetOptions{
+			TypeMeta:        metav1.TypeMeta{},
+			ResourceVersion: "",
+		})
 		if err != nil {
 			return ctrl.Result{}, err
 		}
