@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -104,12 +105,10 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		pods = append(pods, podList.Items...)
 	}
 
-	// FIXME: get pod metrics for a single pod returns only namespace and name
+	// FIXME: getting pod metrics works now, but show error: not allowed to watch; where is the watcher?
 	for _, pod := range pods {
-		podMetrics, err := r.MetricsClientset.MetricsV1beta1().PodMetricses(req.Namespace).Get(ctx, pod.Name, metav1.GetOptions{
-			TypeMeta:        metav1.TypeMeta{},
-			ResourceVersion: "",
-		})
+		var podMetrics v1beta1.PodMetrics
+		err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pod.Name}, &podMetrics, &client.GetOptions{})
 		if err != nil {
 			return ctrl.Result{}, err
 		}
