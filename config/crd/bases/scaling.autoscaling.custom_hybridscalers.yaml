@@ -99,9 +99,27 @@ spec:
           status:
             description: HybridScalerStatus defines the observed state of HybridScaler
             properties:
-              cpuUtilization:
-                format: int32
-                type: integer
+              containerMetrics:
+                items:
+                  description: ContainerMetrics sets resource usage metrics of a container.
+                  properties:
+                    name:
+                      description: Container name corresponding to the one from pod.spec.containers.
+                      type: string
+                    usage:
+                      additionalProperties:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      description: The memory usage is the memory working set.
+                      type: object
+                  required:
+                  - name
+                  - usage
+                  type: object
+                type: array
               limits:
                 additionalProperties:
                   anyOf:
@@ -111,9 +129,6 @@ spec:
                   x-kubernetes-int-or-string: true
                 description: ResourceList is a set of (resource name, quantity) pairs.
                 type: object
-              memoryUtilization:
-                format: int32
-                type: integer
               replicas:
                 format: int32
                 type: integer
@@ -126,23 +141,11 @@ spec:
                   x-kubernetes-int-or-string: true
                 description: ResourceList is a set of (resource name, quantity) pairs.
                 type: object
-              resourceUtilizationEntropy:
-                format: int32
-                type: integer
-              responseTime:
-                description: 'TODO: maybe instead of ResponseTime use a threshold
-                  on the resource utilization that shouldn''t be exceeded and use
-                  this as a performance criterion'
-                format: int32
-                type: integer
             required:
-            - cpuUtilization
+            - containerMetrics
             - limits
-            - memoryUtilization
             - replicas
             - requests
-            - resourceUtilizationEntropy
-            - responseTime
             type: object
         type: object
     served: true

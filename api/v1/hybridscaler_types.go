@@ -20,6 +20,7 @@ import (
 	"k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -41,15 +42,12 @@ type ResourcePolicy struct {
 
 // HybridScalerStatus defines the observed state of HybridScaler
 type HybridScalerStatus struct {
-	Replicas                   int32               `json:"replicas"`
-	Requests                   corev1.ResourceList `json:"requests"`
-	Limits                     corev1.ResourceList `json:"limits"`
-	CpuUtilization             int32               `json:"cpuUtilization"`
-	MemoryUtilization          int32               `json:"memoryUtilization"`
-	ResourceUtilizationEntropy int32               `json:"resourceUtilizationEntropy"`
+	Replicas int32 `json:"replicas"`
 
-	// TODO: maybe instead of ResponseTime use a threshold on the resource utilization that shouldn't be exceeded and use this as a performance criterion
-	ResponseTime int32 `json:"responseTime"`
+	// TODO: requests and limits should also be listed for each container so each container can be scaled individually
+	Requests         corev1.ResourceList        `json:"requests"`
+	Limits           corev1.ResourceList        `json:"limits"`
+	ContainerMetrics []v1beta1.ContainerMetrics `json:"containerMetrics"`
 }
 
 //+kubebuilder:object:root=true

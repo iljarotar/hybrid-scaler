@@ -27,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
-	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -42,8 +41,7 @@ var (
 // HybridScalerReconciler reconciles a HybridScaler object
 type HybridScalerReconciler struct {
 	client.Client
-	Scheme           *runtime.Scheme
-	MetricsClientset *metrics.Clientset
+	Scheme *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=scaling.autoscaling.custom,resources=hybridscalers,verbs=get;list;watch;create;update;patch;delete
@@ -113,8 +111,12 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 
-		logger.Info("metrics", "podMetrics", podMetrics)
+		for _, metrics := range podMetrics.Containers {
+			scaler.Status.ContainerMetrics = append(scaler.Status.ContainerMetrics, metrics)
+		}
 	}
+
+	logger.Info("status complete", "status", scaler.Status)
 
 	return ctrl.Result{RequeueAfter: requeuePeriod}, nil
 }
