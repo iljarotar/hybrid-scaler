@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
+	"github.com/iljarotar/hybrid-scaler/internal/strategy"
 )
 
 var (
@@ -40,7 +41,8 @@ var (
 // HybridScalerReconciler reconciles a HybridScaler object
 type HybridScalerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme          *runtime.Scheme
+	ScalingStrategy strategy.ScalingStrategy
 }
 
 //+kubebuilder:rbac:groups=scaling.autoscaling.custom,resources=hybridscalers,verbs=get;list;watch;create;update;patch;delete
