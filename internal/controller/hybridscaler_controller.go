@@ -23,7 +23,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -82,10 +81,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	scaler.Status.Replicas = deployment.Status.Replicas
-
-	requests, limits := getResourcesFromContainers(deployment.Spec.Template.Spec.Containers)
-	scaler.Status.Requests = requests
-	scaler.Status.Limits = limits
+	scaler.Status.ContainerResources = getContainerResources(deployment.Spec.Template.Spec.Containers)
 
 	var replicaSets appsv1.ReplicaSetList
 	if err := r.List(ctx, &replicaSets, client.InNamespace(req.Namespace), client.MatchingFields{ownerKey: deployment.Name}); err != nil {
@@ -103,11 +99,14 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		pods = append(pods, podList.Items...)
 	}
 
-	// FIXME: getting pod metrics works now, but show error: not allowed to watch; where is the watcher?
+	// FIXME: getting pod metrics works now, but shows error: not allowed to watch; where is the watcher?
 	for _, pod := range pods {
 		var podMetrics v1beta1.PodMetrics
-		err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pod.Name}, &podMetrics, &client.GetOptions{})
-		if err != nil {
+		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pod.Name}, &podMetrics, &client.GetOptions{}); err != nil {
+			if errors.IsNotFound(err) {
+				return ctrl.Result{RequeueAfter: requeuePeriod}, client.IgnoreNotFound(err)
+			}
+
 			return ctrl.Result{}, err
 		}
 
@@ -168,24 +167,20 @@ func addIndices(mgr ctrl.Manager) error {
 	return nil
 }
 
-func getResourcesFromContainers(containers []corev1.Container) (requests, limits corev1.ResourceList) {
-	var cpuRequests, cpuLimits, memoryRequests, memoryLimits resource.Quantity
+func getContainerResources(containers []corev1.Container) []scalingv1.ContainerResources {
+	resources := make([]scalingv1.ContainerResources, 0)
 
 	for _, container := range containers {
-		resources := container.Resources
+		requests, limits := container.Resources.Requests, container.Resources.Limits
 
-		cpuRequests.Add(*resources.Requests.Cpu())
-		memoryRequests.Add(*resources.Requests.Memory())
-		cpuLimits.Add(*resources.Limits.Cpu())
-		memoryLimits.Add(*resources.Limits.Memory())
+		containerResources := scalingv1.ContainerResources{
+			Name:     container.Name,
+			Requests: requests,
+			Limits:   limits,
+		}
+
+		resources = append(resources, containerResources)
 	}
 
-	requests, limits = make(corev1.ResourceList), make(corev1.ResourceList)
-
-	requests[corev1.ResourceCPU] = cpuRequests
-	requests[corev1.ResourceMemory] = memoryRequests
-	limits[corev1.ResourceCPU] = cpuLimits
-	limits[corev1.ResourceMemory] = memoryLimits
-
-	return requests, limits
+	return resources
 }
