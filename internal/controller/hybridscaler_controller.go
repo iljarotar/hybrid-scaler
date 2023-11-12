@@ -18,11 +18,14 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"gopkg.in/inf.v0"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -117,7 +120,15 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	logger.Info("status complete", "status", scaler.Status)
+	state, err := prepareState(scaler.Status)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	decision := r.ScalingStrategy.MakeDecision(state)
+	newResources := interpretResourceScaling(decision)
+
+	logger.Info("scaling decision for state", "state", state, "decision", decision, "newResources", newResources)
 
 	return ctrl.Result{RequeueAfter: requeuePeriod}, nil
 }
@@ -185,4 +196,91 @@ func getContainerResources(containers []corev1.Container) []scalingv1.ContainerR
 	}
 
 	return resources
+}
+
+func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) {
+	containerResources := make(map[string]strategy.Resources)
+
+	for _, resources := range status.ContainerResources {
+		cpuRequests := resources.Requests.Cpu().AsDec()
+		memoryRequests := resources.Requests.Memory().AsDec()
+		cpuLimits := resources.Limits.Cpu().AsDec()
+		memoryLimits := resources.Limits.Memory().AsDec()
+
+		containerResources[resources.Name] = strategy.Resources{
+			Requests: strategy.ResourcesList{
+				CPU:    cpuRequests,
+				Memory: memoryRequests,
+			},
+			Limits: strategy.ResourcesList{
+				CPU:    cpuLimits,
+				Memory: memoryLimits,
+			},
+		}
+	}
+
+	containerMetrics := make([]strategy.ContainerMetrics, 0)
+
+	for _, metrics := range status.ContainerMetrics {
+		cpuUsage := metrics.Usage.Cpu().AsDec()
+		memoryUsage := metrics.Usage.Cpu().AsDec()
+
+		resources, ok := containerResources[metrics.Name]
+		if !ok {
+			return nil, fmt.Errorf("unable to calculate resource usage of container %s", metrics.Name)
+		}
+
+		cpuLimits := resources.Limits.CPU
+		memoryLimits := resources.Limits.Memory
+		zero := new(inf.Dec)
+
+		cpuPercentage := &inf.Dec{}
+		memoryPercentage := &inf.Dec{}
+
+		if cpuLimits.Cmp(zero) != 0 {
+			cpuPercentage.QuoRound(cpuUsage, cpuLimits, 8, inf.RoundHalfUp)
+		}
+
+		if memoryLimits.Cmp(zero) != 0 {
+			memoryPercentage.QuoRound(memoryUsage, memoryLimits, 8, inf.RoundHalfUp)
+		}
+
+		containerMetrics = append(containerMetrics, strategy.ContainerMetrics{
+			Name: metrics.Name,
+			ResourceUsage: strategy.ResourceUsage{
+				CPU:    cpuPercentage,
+				Memory: memoryPercentage,
+			},
+		})
+	}
+
+	state := &strategy.State{
+		Replicas:           status.Replicas,
+		ContainerResources: containerResources,
+		ContainerMetrics:   containerMetrics,
+	}
+
+	return state, nil
+}
+
+func interpretResourceScaling(decision *strategy.ScalingDecision) []scalingv1.ContainerResources {
+	containerResources := make([]scalingv1.ContainerResources, 0)
+
+	for name, resources := range decision.ContainerResources {
+		requests := make(corev1.ResourceList)
+		limits := make(corev1.ResourceList)
+
+		requests[corev1.ResourceCPU] = *resource.NewDecimalQuantity(*resources.Requests.CPU, resource.DecimalSI)
+		requests[corev1.ResourceMemory] = *resource.NewDecimalQuantity(*resources.Requests.Memory, resource.DecimalSI)
+		limits[corev1.ResourceCPU] = *resource.NewDecimalQuantity(*resources.Limits.CPU, resource.DecimalSI)
+		limits[corev1.ResourceMemory] = *resource.NewDecimalQuantity(*resources.Limits.Memory, resource.DecimalSI)
+
+		containerResources = append(containerResources, scalingv1.ContainerResources{
+			Name:     name,
+			Requests: requests,
+			Limits:   limits,
+		})
+	}
+
+	return containerResources
 }
