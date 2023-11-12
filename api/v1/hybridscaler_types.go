@@ -41,16 +41,15 @@ type ResourcePolicy struct {
 }
 
 type ContainerResources struct {
-	Name     string              `json:"name"`
 	Requests corev1.ResourceList `json:"requests"`
 	Limits   corev1.ResourceList `json:"limits"`
 }
 
 // HybridScalerStatus defines the observed state of HybridScaler
 type HybridScalerStatus struct {
-	Replicas           int32                      `json:"replicas"`
-	ContainerResources []ContainerResources       `json:"containerResources"`
-	ContainerMetrics   []v1beta1.ContainerMetrics `json:"containerMetrics"`
+	Replicas           int32                         `json:"replicas"`
+	ContainerResources map[string]ContainerResources `json:"containerResources"`
+	ContainerMetrics   []v1beta1.ContainerMetrics    `json:"containerMetrics"`
 }
 
 //+kubebuilder:object:root=true

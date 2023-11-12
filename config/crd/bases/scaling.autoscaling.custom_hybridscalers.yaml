@@ -121,7 +121,7 @@ spec:
                   type: object
                 type: array
               containerResources:
-                items:
+                additionalProperties:
                   properties:
                     limits:
                       additionalProperties:
@@ -133,8 +133,6 @@ spec:
                       description: ResourceList is a set of (resource name, quantity)
                         pairs.
                       type: object
-                    name:
-                      type: string
                     requests:
                       additionalProperties:
                         anyOf:
@@ -147,10 +145,9 @@ spec:
                       type: object
                   required:
                   - limits
-                  - name
                   - requests
                   type: object
-                type: array
+                type: object
               replicas:
                 format: int32
                 type: integer

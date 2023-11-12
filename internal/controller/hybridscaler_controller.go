@@ -32,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
@@ -120,6 +121,11 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	if err := r.Status().Update(ctx, &scaler); err != nil {
+		logger.Error(err, "unable to update scaler status")
+		return ctrl.Result{}, err
+	}
+
 	state, err := prepareState(scaler.Status)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -127,8 +133,28 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	decision := r.ScalingStrategy.MakeDecision(state)
 	newResources := interpretResourceScaling(decision)
+	newContainers := make([]corev1.Container, 0)
 
-	logger.Info("scaling decision for state", "state", state, "decision", decision, "newResources", newResources)
+	deployment.Spec.Replicas = &decision.Replicas
+
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		resources, ok := newResources[container.Name]
+		if !ok {
+			return ctrl.Result{}, fmt.Errorf("unable to find new resources for container %v", container.Name)
+		}
+
+		container.Resources.Requests = resources.Requests
+		container.Resources.Limits = resources.Limits
+
+		newContainers = append(newContainers, container)
+	}
+
+	deployment.Spec.Template.Spec.Containers = newContainers
+
+	if err := r.Update(ctx, &deployment); err != nil {
+		logger.Error(err, "unable to update deployment spec")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{RequeueAfter: requeuePeriod}, nil
 }
@@ -141,6 +167,7 @@ func (r *HybridScalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&scalingv1.HybridScaler{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
 
@@ -180,19 +207,18 @@ func addIndices(mgr ctrl.Manager) error {
 	return nil
 }
 
-func getContainerResources(containers []corev1.Container) []scalingv1.ContainerResources {
-	resources := make([]scalingv1.ContainerResources, 0)
+func getContainerResources(containers []corev1.Container) map[string]scalingv1.ContainerResources {
+	resources := make(map[string]scalingv1.ContainerResources)
 
 	for _, container := range containers {
 		requests, limits := container.Resources.Requests, container.Resources.Limits
 
 		containerResources := scalingv1.ContainerResources{
-			Name:     container.Name,
 			Requests: requests,
 			Limits:   limits,
 		}
 
-		resources = append(resources, containerResources)
+		resources[container.Name] = containerResources
 	}
 
 	return resources
@@ -201,13 +227,13 @@ func getContainerResources(containers []corev1.Container) []scalingv1.ContainerR
 func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) {
 	containerResources := make(map[string]strategy.Resources)
 
-	for _, resources := range status.ContainerResources {
+	for name, resources := range status.ContainerResources {
 		cpuRequests := resources.Requests.Cpu().AsDec()
 		memoryRequests := resources.Requests.Memory().AsDec()
 		cpuLimits := resources.Limits.Cpu().AsDec()
 		memoryLimits := resources.Limits.Memory().AsDec()
 
-		containerResources[resources.Name] = strategy.Resources{
+		containerResources[name] = strategy.Resources{
 			Requests: strategy.ResourcesList{
 				CPU:    cpuRequests,
 				Memory: memoryRequests,
@@ -263,8 +289,8 @@ func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) 
 	return state, nil
 }
 
-func interpretResourceScaling(decision *strategy.ScalingDecision) []scalingv1.ContainerResources {
-	containerResources := make([]scalingv1.ContainerResources, 0)
+func interpretResourceScaling(decision *strategy.ScalingDecision) map[string]scalingv1.ContainerResources {
+	containerResources := make(map[string]scalingv1.ContainerResources)
 
 	for name, resources := range decision.ContainerResources {
 		requests := make(corev1.ResourceList)
@@ -275,11 +301,10 @@ func interpretResourceScaling(decision *strategy.ScalingDecision) []scalingv1.Co
 		limits[corev1.ResourceCPU] = *resource.NewDecimalQuantity(*resources.Limits.CPU, resource.DecimalSI)
 		limits[corev1.ResourceMemory] = *resource.NewDecimalQuantity(*resources.Limits.Memory, resource.DecimalSI)
 
-		containerResources = append(containerResources, scalingv1.ContainerResources{
-			Name:     name,
+		containerResources[name] = scalingv1.ContainerResources{
 			Requests: requests,
 			Limits:   limits,
-		})
+		}
 	}
 
 	return containerResources

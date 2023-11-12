@@ -146,9 +146,9 @@ func (in *HybridScalerStatus) DeepCopyInto(out *HybridScalerStatus) {
 	*out = *in
 	if in.ContainerResources != nil {
 		in, out := &in.ContainerResources, &out.ContainerResources
-		*out = make([]ContainerResources, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+		*out = make(map[string]ContainerResources, len(*in))
+		for key, val := range *in {
+			(*out)[key] = *val.DeepCopy()
 		}
 	}
 	if in.ContainerMetrics != nil {
