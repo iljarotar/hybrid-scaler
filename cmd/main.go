@@ -95,7 +95,7 @@ func main() {
 	if err = (&controller.HybridScalerReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
-		ScalingStrategy: &reinforcement.ScalingAgent{},
+		ScalingStrategy: reinforcement.NewScalingAgent(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HybridScaler")
 		os.Exit(1)

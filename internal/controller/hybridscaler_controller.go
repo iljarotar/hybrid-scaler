@@ -131,7 +131,11 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	decision := r.ScalingStrategy.MakeDecision(state)
+	decision, err := r.ScalingStrategy.MakeDecision(state)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	newResources := interpretResourceScaling(decision)
 	newContainers := make([]corev1.Container, 0)
 
