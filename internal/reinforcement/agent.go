@@ -4,41 +4,15 @@ import (
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
 )
 
-type quantum float64
+type action string
 
 const (
-	// usageQuantum is a 5% step
-	usageQuantum quantum = 0.05
-
-	// cpuQuantum is a 1m step
-	cpuQuantum quantum = 0.001
-
-	// memoryQuantum is a 1k step
-	memoryQuantum quantum = 1000
+	actionNone                   action = "NONE"
+	actionVertical               action = "VERTICAL"
+	actionHorizontal             action = "HORIZONAL"
+	actionVerticalHorizontalUp   action = "VERTICAL_HORIZONTAL_UP"
+	actionnVerticalHorizontaDown action = "VERTICAL_HORIZONTAL_DOWN"
 )
-
-type scalingDirection string
-
-const (
-	scalingDirectionUp    scalingDirection = "UP"
-	scalingDirectionDown  scalingDirection = "DOWN"
-	scalingDirectionStays scalingDirection = "STAYS"
-)
-
-type scalingResource string
-
-const (
-	scalingResourceMemory   scalingResource = "MEMORY"
-	scalingResourceCPU      scalingResource = "CPU"
-	scalingResourceReplicas scalingResource = "REPLICAS"
-)
-
-type actionName string
-
-type action struct {
-	Name      actionName
-	decisions map[scalingResource]scalingDirection
-}
 
 type actions []action
 
@@ -47,26 +21,23 @@ type learningMethod interface {
 	GetGreedyActionsAmong(actions) actions
 }
 
+// percentageQuantum is used to discretize the resource usage very roughly
+const percentageQuantum = 25
+
+// stateName represents a state as a string of the form
+// <replicas>_<cpu-usage>_<memory-usage>_<latency-threshold-exceeded in [0,1]>
 type stateName string
 
 type state struct {
-	Name               stateName
-	Replicas           uint32
-	ContainerResources resources
-	ContainerMetrics   resourcesList
-}
+	Name                     stateName
+	Replicas                 uint32
+	LatencyThresholdExceeded bool
 
-type resources struct {
-	Requests resourcesList
-	Limits   resourcesList
-}
+	// CpuUsage in `percentageQuantum`% steps
+	CpuUsage uint32
 
-// represented in k*quantum, where k is an integer and quantum is a discretizing step
-// use usageQuantum for cpu and memory metrics
-// use cpuQuantum and memoryQuantum for cpu and memory resources respectively
-type resourcesList struct {
-	CPU    uint32
-	Memory uint32
+	// MemoryUsage in `percentageQuantum`% steps
+	MemoryUsage uint32
 }
 
 type scalingAgent struct {
@@ -77,13 +48,14 @@ type scalingAgent struct {
 
 func NewScalingAgent() *scalingAgent {
 	method := QLearning{}
+	var a action
 
 	return &scalingAgent{
 		method:         &method,
 		epsilon:        0,
 		alpha:          0,
 		gamma:          0,
-		previousAction: action{},
+		previousAction: a,
 	}
 }
 
@@ -136,11 +108,11 @@ func getPossibleActionsForState(state) actions {
 }
 
 func getRandomActionFrom(actions) action {
-	action := action{}
+	var a action
 
 	// TODO: implement
 
-	return action
+	return a
 }
 
 func iAmGreedy(epsilon float64) bool {
