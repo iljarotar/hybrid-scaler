@@ -81,11 +81,14 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 }
 
 func convertState(s strategy.State) state {
-	state := state{}
 
-	// TODO: implement
-
-	return state
+	return state{
+		Name:                     "",
+		Replicas:                 uint32(s.Replicas),
+		LatencyThresholdExceeded: false,
+		CpuUsage:                 0,
+		MemoryUsage:              0,
+	}
 }
 
 func convertAction(action) *strategy.ScalingDecision {

@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/inf.v0"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -249,7 +248,7 @@ func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) 
 		}
 	}
 
-	containerMetrics := make([]strategy.ContainerMetrics, 0)
+	containerMetricsMap := make(strategy.ContainerMetricsMap)
 
 	for _, metrics := range status.ContainerMetrics {
 		cpuUsage := metrics.Usage.Cpu().AsDec()
@@ -260,34 +259,18 @@ func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) 
 			return nil, fmt.Errorf("unable to calculate resource usage of container %s", metrics.Name)
 		}
 
-		cpuLimits := resources.Limits.CPU
-		memoryLimits := resources.Limits.Memory
-		zero := new(inf.Dec)
-
-		cpuPercentage := &inf.Dec{}
-		memoryPercentage := &inf.Dec{}
-
-		if cpuLimits.Cmp(zero) != 0 {
-			cpuPercentage.QuoRound(cpuUsage, cpuLimits, 8, inf.RoundHalfUp)
-		}
-
-		if memoryLimits.Cmp(zero) != 0 {
-			memoryPercentage.QuoRound(memoryUsage, memoryLimits, 8, inf.RoundHalfUp)
-		}
-
-		containerMetrics = append(containerMetrics, strategy.ContainerMetrics{
-			Name: metrics.Name,
-			ResourceUsage: strategy.ResourceUsage{
-				CPU:    cpuPercentage,
-				Memory: memoryPercentage,
+		containerMetricsMap[metrics.Name] = strategy.ContainerMetrics{
+			ResourceUsage: strategy.ResourcesList{
+				CPU:    cpuUsage,
+				Memory: memoryUsage,
 			},
-		})
+			Resources: resources,
+		}
 	}
 
 	state := &strategy.State{
-		Replicas:           status.Replicas,
-		ContainerResources: containerResources,
-		ContainerMetrics:   containerMetrics,
+		Replicas:            status.Replicas,
+		ContainerMetricsMap: containerMetricsMap,
 	}
 
 	return state, nil

@@ -9,8 +9,7 @@ type ScalingStrategy interface {
 // State represents the current state
 type State struct {
 	Replicas int32
-	ContainerResources
-	ContainerMetrics []ContainerMetrics
+	ContainerMetricsMap
 }
 
 // ScalingDecision represents the next desired state
@@ -19,24 +18,26 @@ type ScalingDecision struct {
 	ContainerResources
 }
 
+// ContainerMetrics stores a container's allocated and used resources
 type ContainerMetrics struct {
-	Name string
-	ResourceUsage
+	ResourceUsage ResourcesList
+	Resources
 }
 
+// Resources stores a container's resource requests and limits
 type Resources struct {
 	Requests ResourcesList
 	Limits   ResourcesList
 }
 
+// ResourcesList stores cpu and memory quantities as decimal values
 type ResourcesList struct {
 	CPU    *inf.Dec
 	Memory *inf.Dec
 }
 
-type ResourceUsage struct {
-	CPU    *inf.Dec
-	Memory *inf.Dec
-}
-
+// ContainerResources maps a container's name to its allocated resources
 type ContainerResources map[string]Resources
+
+// ContainerMetricsMap maps a container's name to its metrics
+type ContainerMetricsMap map[string]ContainerMetrics
