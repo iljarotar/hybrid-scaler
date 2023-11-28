@@ -89,7 +89,6 @@ func convertState(s strategy.State) state {
 	memoryUsageInPercent := inf.NewDec(0, 0)
 	zero := inf.NewDec(0, 0)
 
-	// TODO: put percentage calculation into scaling package to reuse
 	podCpuLimits := s.PodMetrics.Limits.CPU
 	podCpuUsage := s.PodMetrics.ResourceUsage.CPU
 	podMemoryLimits := s.PodMetrics.Limits.Memory
