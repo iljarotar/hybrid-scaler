@@ -269,6 +269,7 @@ func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) 
 	}
 
 	state := &strategy.State{
+		// TODO: should be available replicas
 		Replicas:            status.Replicas,
 		ContainerMetricsMap: containerMetricsMap,
 	}
