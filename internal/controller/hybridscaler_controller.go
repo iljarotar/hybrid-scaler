@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"gopkg.in/inf.v0"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -120,12 +122,13 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	// FIXME: if there are 0 replicas, an error is thrown.
 	if err := r.Status().Update(ctx, &scaler); err != nil {
 		logger.Error(err, "unable to update scaler status")
 		return ctrl.Result{}, err
 	}
 
-	state, err := prepareState(scaler.Status)
+	state, err := prepareState(scaler.Status, scaler.Spec)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -227,16 +230,32 @@ func getContainerResources(containers []corev1.Container) map[string]scalingv1.C
 	return resources
 }
 
-func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) {
-	containerResources := make(map[string]strategy.Resources)
+func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScalerSpec) (*strategy.State, error) {
+	podCpuUsage := inf.NewDec(0, 0)
+	podMemoryUsage := inf.NewDec(0, 0)
 
-	for name, resources := range status.ContainerResources {
-		cpuRequests := resources.Requests.Cpu().AsDec()
-		memoryRequests := resources.Requests.Memory().AsDec()
-		cpuLimits := resources.Limits.Cpu().AsDec()
-		memoryLimits := resources.Limits.Memory().AsDec()
+	podCpuRequests := inf.NewDec(0, 0)
+	podMemoryRequests := inf.NewDec(0, 0)
+	podCpuLimits := inf.NewDec(0, 0)
+	podMemoryLimits := inf.NewDec(0, 0)
 
-		containerResources[name] = strategy.Resources{
+	containerMetricsMap := make(strategy.ContainerMetrics)
+
+	for _, metrics := range status.ContainerMetrics {
+		cpuUsage := metrics.Usage.Cpu().AsDec()
+		memoryUsage := metrics.Usage.Cpu().AsDec()
+
+		r, ok := status.ContainerResources[metrics.Name]
+		if !ok {
+			return nil, fmt.Errorf("unable to calculate resource usage of container %s", metrics.Name)
+		}
+
+		cpuRequests := r.Requests.Cpu().AsDec()
+		memoryRequests := r.Requests.Memory().AsDec()
+		cpuLimits := r.Limits.Cpu().AsDec()
+		memoryLimits := r.Limits.Memory().AsDec()
+
+		resources := strategy.Resources{
 			Requests: strategy.ResourcesList{
 				CPU:    cpuRequests,
 				Memory: memoryRequests,
@@ -246,32 +265,75 @@ func prepareState(status scalingv1.HybridScalerStatus) (*strategy.State, error) 
 				Memory: memoryLimits,
 			},
 		}
-	}
 
-	containerMetricsMap := make(strategy.ContainerMetricsMap)
-
-	for _, metrics := range status.ContainerMetrics {
-		cpuUsage := metrics.Usage.Cpu().AsDec()
-		memoryUsage := metrics.Usage.Cpu().AsDec()
-
-		resources, ok := containerResources[metrics.Name]
-		if !ok {
-			return nil, fmt.Errorf("unable to calculate resource usage of container %s", metrics.Name)
-		}
-
-		containerMetricsMap[metrics.Name] = strategy.ContainerMetrics{
+		containerMetricsMap[metrics.Name] = strategy.Metrics{
 			ResourceUsage: strategy.ResourcesList{
 				CPU:    cpuUsage,
 				Memory: memoryUsage,
 			},
 			Resources: resources,
 		}
+
+		podCpuRequests.Add(podCpuRequests, cpuRequests)
+		podCpuLimits.Add(podCpuLimits, cpuLimits)
+		podMemoryRequests.Add(podMemoryRequests, memoryRequests)
+		podMemoryLimits.Add(podMemoryLimits, memoryLimits)
+
+		podCpuUsage.Add(podCpuUsage, cpuUsage)
+		podMemoryUsage.Add(podMemoryUsage, memoryUsage)
+	}
+
+	podMetrics := strategy.Metrics{
+		ResourceUsage: strategy.ResourcesList{
+			CPU:    podCpuUsage,
+			Memory: podMemoryUsage,
+		},
+		Resources: strategy.Resources{
+			Requests: strategy.ResourcesList{
+				CPU:    podCpuRequests,
+				Memory: podMemoryRequests,
+			},
+			Limits: strategy.ResourcesList{
+				CPU:    podCpuLimits,
+				Memory: podMemoryLimits,
+			},
+		},
+	}
+
+	constraints := strategy.Constraints{
+		MinReplicas: ptr.Deref(spec.MinReplicas, 0),
+		MaxReplicas: ptr.Deref(spec.MaxReplicas, 0),
+		MinResources: strategy.ResourcesList{
+			CPU:    spec.ResourcePolicy.MinAllowed.Cpu().AsDec(),
+			Memory: spec.ResourcePolicy.MinAllowed.Memory().AsDec(),
+		},
+		MaxResources: strategy.ResourcesList{
+			CPU:    spec.ResourcePolicy.MaxAllowed.Cpu().AsDec(),
+			Memory: spec.ResourcePolicy.MaxAllowed.Memory().AsDec(),
+		},
+	}
+
+	targetCpuUtilization, ok := spec.ResourcePolicy.TargetUtilization[corev1.ResourceCPU]
+	if !ok {
+		return nil, fmt.Errorf("cannot find target cpu utilization")
+	}
+
+	targetMemoryUtilization, ok := spec.ResourcePolicy.TargetUtilization[corev1.ResourceMemory]
+	if !ok {
+		return nil, fmt.Errorf("cannot find target memory utilization")
+	}
+
+	targetUtilization := strategy.ResourcesList{
+		CPU:    inf.NewDec(int64(targetCpuUtilization), 0),
+		Memory: inf.NewDec(int64(targetMemoryUtilization), 0),
 	}
 
 	state := &strategy.State{
-		// TODO: should be available replicas
-		Replicas:            status.Replicas,
-		ContainerMetricsMap: containerMetricsMap,
+		Replicas:          status.Replicas,
+		ContainerMetrics:  containerMetricsMap,
+		Constraints:       constraints,
+		PodMetrics:        podMetrics,
+		TargetUtilization: targetUtilization,
 	}
 
 	return state, nil

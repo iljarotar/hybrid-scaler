@@ -187,6 +187,13 @@ func (in *ResourcePolicy) DeepCopyInto(out *ResourcePolicy) {
 			(*out)[key] = val.DeepCopy()
 		}
 	}
+	if in.TargetUtilization != nil {
+		in, out := &in.TargetUtilization, &out.TargetUtilization
+		*out = make(map[corev1.ResourceName]int32, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.ControlledResources != nil {
 		in, out := &in.ControlledResources, &out.ControlledResources
 		*out = new([]corev1.ResourceName)

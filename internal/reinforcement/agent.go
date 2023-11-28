@@ -3,6 +3,7 @@ package reinforcement
 import (
 	"fmt"
 
+	"github.com/iljarotar/hybrid-scaler/internal/scaling"
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
 	"gopkg.in/inf.v0"
 )
@@ -10,11 +11,11 @@ import (
 type action string
 
 const (
-	actionNone                   action = "NONE"
-	actionVertical               action = "VERTICAL"
-	actionHorizontal             action = "HORIZONAL"
-	actionVerticalHorizontalUp   action = "VERTICAL_HORIZONTAL_UP"
-	actionnVerticalHorizontaDown action = "VERTICAL_HORIZONTAL_DOWN"
+	actionNone                  action = "NONE"
+	actionVertical              action = "VERTICAL"
+	actionHorizontal            action = "HORIZONAL"
+	actionVerticalHorizontalUp  action = "VERTICAL_HORIZONTAL_UP"
+	actionVerticalHorizontaDown action = "VERTICAL_HORIZONTAL_DOWN"
 )
 
 type actions []action
@@ -76,7 +77,7 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 	}
 
 	action := getRandomActionFrom(actions)
-	decision := convertAction(action)
+	decision := convertAction(action, state)
 
 	a.previousAction = action
 
@@ -84,28 +85,15 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 }
 
 func convertState(s strategy.State) state {
-	podCpuUsage := inf.NewDec(0, 0)
-	podMemoryUsage := inf.NewDec(0, 0)
-
-	// FIXME: what if limits are not specified
-	podCpuLimits := inf.NewDec(0, 0)
-	podMemoryLimits := inf.NewDec(0, 0)
-
-	for _, metrics := range s.ContainerMetricsMap {
-		cpuUsage := metrics.ResourceUsage.CPU
-		memoryUsage := metrics.ResourceUsage.Memory
-		podCpuUsage.Add(podCpuUsage, cpuUsage)
-		memoryUsage.Add(podMemoryUsage, memoryUsage)
-
-		cpuLimits := metrics.Limits.CPU
-		memoryLimits := metrics.Limits.Memory
-		podCpuLimits.Add(podCpuLimits, cpuLimits)
-		podMemoryLimits.Add(podMemoryLimits, memoryLimits)
-	}
-
 	cpuUsageInPercent := inf.NewDec(0, 0)
 	memoryUsageInPercent := inf.NewDec(0, 0)
 	zero := inf.NewDec(0, 0)
+
+	// TODO: put percentage calculation into scaling package to reuse
+	podCpuLimits := s.PodMetrics.Limits.CPU
+	podCpuUsage := s.PodMetrics.ResourceUsage.CPU
+	podMemoryLimits := s.PodMetrics.Limits.Memory
+	podMemoryUsage := s.PodMetrics.ResourceUsage.Memory
 
 	if podCpuLimits.Cmp(zero) != 0 {
 		cpuUsageInPercent.QuoRound(podCpuUsage, podCpuLimits, 8, inf.RoundHalfUp)
@@ -132,15 +120,32 @@ func convertState(s strategy.State) state {
 	}
 }
 
-func convertAction(action) *strategy.ScalingDecision {
-	decision := &strategy.ScalingDecision{
-		Replicas:           0,
-		ContainerResources: map[string]strategy.Resources{},
+func convertAction(a action, s *strategy.State) *strategy.ScalingDecision {
+	containerResources := make(strategy.ContainerResources)
+
+	for name, metrics := range s.ContainerMetrics {
+		containerResources[name] = metrics.Resources
 	}
 
-	// TODO: implement
+	noChange := &strategy.ScalingDecision{
+		Replicas:           s.Replicas,
+		ContainerResources: containerResources,
+	}
 
-	return decision
+	switch a {
+	case actionNone:
+		return noChange
+	case actionHorizontal:
+		return scaling.Horizontal(s)
+	case actionVertical:
+		return scaling.Vertical(s)
+	case actionVerticalHorizontalUp:
+		return scaling.HybridHorizontalUp(s)
+	case actionVerticalHorizontaDown:
+		return scaling.HybridHorizontalDown(s)
+	default:
+		return noChange
+	}
 }
 
 func getPossibleActionsForState(state) actions {

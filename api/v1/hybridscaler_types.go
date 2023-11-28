@@ -31,13 +31,16 @@ type HybridScalerSpec struct {
 	ScaleTargetRef v2.CrossVersionObjectReference `json:"scaleTargetRef"`
 	MinReplicas    *int32                         `json:"minReplicas"`
 	MaxReplicas    *int32                         `json:"maxReplicas"`
-	ResourcePolicy ResourcePolicy                 `json:"resourcePolicy"`
+
+	// ResourcePolicy must be applied on a pod level
+	ResourcePolicy ResourcePolicy `json:"resourcePolicy"`
 }
 
 type ResourcePolicy struct {
-	MinAllowed          corev1.ResourceList    `json:"minAllowed"`
-	MaxAllowed          corev1.ResourceList    `json:"maxAllowed"`
-	ControlledResources *[]corev1.ResourceName `json:"controlledResources"`
+	MinAllowed          corev1.ResourceList           `json:"minAllowed"`
+	MaxAllowed          corev1.ResourceList           `json:"maxAllowed"`
+	TargetUtilization   map[corev1.ResourceName]int32 `json:"targetUtilization"`
+	ControlledResources *[]corev1.ResourceName        `json:"controlledResources"`
 }
 
 type ContainerResources struct {
