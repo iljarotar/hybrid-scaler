@@ -42,12 +42,14 @@ func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 	if state.TargetUtilization.CPU.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("cpu target utilization should not be zero")
 	}
-	desiredReplicasCpu := new(inf.Dec).Mul(currentReplicas, cpuPercentage.QuoRound(cpuPercentage, state.TargetUtilization.CPU, 8, inf.RoundCeil))
+	desiredReplicasCpu := new(inf.Dec).Mul(currentReplicas, cpuPercentage.QuoRound(cpuPercentage, state.TargetUtilization.CPU, 8, inf.RoundHalfUp))
+	desiredReplicasCpu.Round(desiredReplicasCpu, 0, inf.RoundCeil)
 
 	if state.TargetUtilization.Memory.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("memory target utilization should not be zero")
 	}
-	desiredReplicasMemory := new(inf.Dec).Mul(currentReplicas, memoryPercentage.QuoRound(memoryPercentage, state.TargetUtilization.Memory, 8, inf.RoundCeil))
+	desiredReplicasMemory := new(inf.Dec).Mul(currentReplicas, memoryPercentage.QuoRound(memoryPercentage, state.TargetUtilization.Memory, 8, inf.RoundHalfUp))
+	desiredReplicasMemory.Round(desiredReplicasMemory, 0, inf.RoundCeil)
 
 	desiredReplicas := desiredReplicasCpu
 	if desiredReplicas.Cmp(desiredReplicasMemory) < 0 {
