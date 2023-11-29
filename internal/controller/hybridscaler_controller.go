@@ -325,8 +325,8 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 	}
 
 	targetUtilization := strategy.ResourcesList{
-		CPU:    inf.NewDec(int64(targetCpuUtilization), 0),
-		Memory: inf.NewDec(int64(targetMemoryUtilization), 0),
+		CPU:    inf.NewDec(int64(targetCpuUtilization), 2),
+		Memory: inf.NewDec(int64(targetMemoryUtilization), 2),
 	}
 
 	state := &strategy.State{

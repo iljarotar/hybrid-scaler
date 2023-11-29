@@ -23,32 +23,22 @@ func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 	cpuRequests := state.PodMetrics.Requests.CPU
 	memoryRequests := state.PodMetrics.Requests.Memory
 
-	cpuPercentage := inf.NewDec(0, 0)
-	memoryPercentage := inf.NewDec(0, 0)
-	zero := inf.NewDec(0, 0)
-
-	if cpuRequests.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("cpu requests should not be zero")
-	}
-	cpuPercentage.QuoRound(cpuUsage, cpuRequests, 8, inf.RoundHalfUp)
-
-	if memoryRequests.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("memory requests should not be zero")
-	}
-	memoryPercentage.QuoRound(memoryUsage, memoryRequests, 8, inf.RoundHalfUp)
-
 	currentReplicas := inf.NewDec(int64(state.Replicas), 0)
 
-	if state.TargetUtilization.CPU.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("cpu target utilization should not be zero")
+	cpuCurrentToTargetRatio, err := currentToTargetUtilizationRatio(cpuUsage, cpuRequests, state.TargetUtilization.CPU)
+	if err != nil {
+		return nil, fmt.Errorf("unable to calculate cpu current to target utilization ratio, %w", err)
 	}
-	desiredReplicasCpu := new(inf.Dec).Mul(currentReplicas, cpuPercentage.QuoRound(cpuPercentage, state.TargetUtilization.CPU, 8, inf.RoundHalfUp))
+
+	desiredReplicasCpu := new(inf.Dec).Mul(currentReplicas, cpuCurrentToTargetRatio)
 	desiredReplicasCpu.Round(desiredReplicasCpu, 0, inf.RoundCeil)
 
-	if state.TargetUtilization.Memory.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("memory target utilization should not be zero")
+	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(memoryUsage, memoryRequests, state.TargetUtilization.Memory)
+	if err != nil {
+		return nil, fmt.Errorf("unable to calculate memory current to target utilization ratio, %w", err)
 	}
-	desiredReplicasMemory := new(inf.Dec).Mul(currentReplicas, memoryPercentage.QuoRound(memoryPercentage, state.TargetUtilization.Memory, 8, inf.RoundHalfUp))
+
+	desiredReplicasMemory := new(inf.Dec).Mul(currentReplicas, memoryCurrentToTargetRatio)
 	desiredReplicasMemory.Round(desiredReplicasMemory, 0, inf.RoundCeil)
 
 	desiredReplicas := desiredReplicasCpu
