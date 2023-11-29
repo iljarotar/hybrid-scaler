@@ -77,7 +77,10 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 	}
 
 	action := getRandomActionFrom(actions)
-	decision := convertAction(action, state)
+	decision, err := convertAction(action, state)
+	if err != nil {
+		return nil, err
+	}
 
 	a.previousAction = action
 
@@ -119,7 +122,7 @@ func convertState(s strategy.State) state {
 	}
 }
 
-func convertAction(a action, s *strategy.State) *strategy.ScalingDecision {
+func convertAction(a action, s *strategy.State) (*strategy.ScalingDecision, error) {
 	containerResources := make(strategy.ContainerResources)
 
 	for name, metrics := range s.ContainerMetrics {
@@ -133,7 +136,7 @@ func convertAction(a action, s *strategy.State) *strategy.ScalingDecision {
 
 	switch a {
 	case actionNone:
-		return noChange
+		return noChange, nil
 	case actionHorizontal:
 		return scaling.Horizontal(s)
 	case actionVertical:
@@ -143,7 +146,7 @@ func convertAction(a action, s *strategy.State) *strategy.ScalingDecision {
 	case actionVerticalHorizontaDown:
 		return scaling.HybridHorizontalDown(s)
 	default:
-		return noChange
+		return noChange, nil
 	}
 }
 

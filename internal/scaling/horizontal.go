@@ -1,15 +1,18 @@
 package scaling
 
 import (
+	"fmt"
+
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
 	"gopkg.in/inf.v0"
 )
 
-// Recommends new number of replicas
-func Horizontal(state *strategy.State) *strategy.ScalingDecision {
-	// TODO: implement
-	// while agent compares current usage with limits, here the request utilization should be used
-
+// Horizontal recommends a new number of replicas based on the following calculation
+// For each resource of cpu and memory it calculates the desired number of replicas as
+// `desired = ceil(current * currentUtilization / targetUtilization)` (same formula as `HPA`)
+// if picks the maximum of both values and compares that to the minimum and maximum allowed replicas
+// the result will be max(min(desired, maxReplicas), minReplicas)
+func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 	containerResources := make(strategy.ContainerResources)
 	for name, metrics := range state.ContainerMetrics {
 		containerResources[name] = metrics.Resources
@@ -24,18 +27,26 @@ func Horizontal(state *strategy.State) *strategy.ScalingDecision {
 	memoryPercentage := inf.NewDec(0, 0)
 	zero := inf.NewDec(0, 0)
 
-	if cpuRequests.Cmp(zero) != 0 {
-		cpuPercentage.QuoRound(cpuUsage, cpuRequests, 8, inf.RoundHalfUp)
+	if cpuRequests.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("cpu requests should not be zero")
 	}
+	cpuPercentage.QuoRound(cpuUsage, cpuRequests, 8, inf.RoundHalfUp)
 
-	if memoryRequests.Cmp(zero) != 0 {
-		memoryPercentage.QuoRound(memoryUsage, memoryRequests, 8, inf.RoundHalfUp)
+	if memoryRequests.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("memory requests should not be zero")
 	}
+	memoryPercentage.QuoRound(memoryUsage, memoryRequests, 8, inf.RoundHalfUp)
 
 	currentReplicas := inf.NewDec(int64(state.Replicas), 0)
 
+	if state.TargetUtilization.CPU.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("cpu target utilization should not be zero")
+	}
 	desiredReplicasCpu := new(inf.Dec).Mul(currentReplicas, cpuPercentage.QuoRound(cpuPercentage, state.TargetUtilization.CPU, 8, inf.RoundCeil))
 
+	if state.TargetUtilization.Memory.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("memory target utilization should not be zero")
+	}
 	desiredReplicasMemory := new(inf.Dec).Mul(currentReplicas, memoryPercentage.QuoRound(memoryPercentage, state.TargetUtilization.Memory, 8, inf.RoundCeil))
 
 	desiredReplicas := desiredReplicasCpu
@@ -55,12 +66,8 @@ func Horizontal(state *strategy.State) *strategy.ScalingDecision {
 
 	replicas := desiredReplicas.UnscaledBig().Int64()
 
-	// TODO:
-	// check calculation once more
-	// check divisions by zero and return error in that case
-
 	return &strategy.ScalingDecision{
 		Replicas:           int32(replicas),
 		ContainerResources: containerResources,
-	}
+	}, nil
 }

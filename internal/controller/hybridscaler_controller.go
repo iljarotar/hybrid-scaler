@@ -66,25 +66,26 @@ type HybridScalerReconciler struct {
 func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	requeuePeriod := 15 * time.Second
+	result := ctrl.Result{RequeueAfter: requeuePeriod}
 
 	logger.Info("Reconcile", "req", req)
 
 	var scaler scalingv1.HybridScaler
 	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
 		if errors.IsNotFound(err) {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
+			return result, client.IgnoreNotFound(err)
 		}
 
-		return ctrl.Result{}, err
+		return result, err
 	}
 
 	var deployment appsv1.Deployment
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: scaler.Spec.ScaleTargetRef.Name}, &deployment); err != nil {
 		if errors.IsNotFound(err) {
-			return ctrl.Result{RequeueAfter: requeuePeriod}, nil
+			return result, nil
 		}
 
-		return ctrl.Result{}, err
+		return result, err
 	}
 
 	scaler.Status.Replicas = deployment.Status.Replicas
@@ -92,7 +93,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	var replicaSets appsv1.ReplicaSetList
 	if err := r.List(ctx, &replicaSets, client.InNamespace(req.Namespace), client.MatchingFields{ownerKey: deployment.Name}); err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 
 	pods := make([]corev1.Pod, 0)
@@ -100,7 +101,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for _, rs := range replicaSets.Items {
 		var podList corev1.PodList
 		if err := r.List(ctx, &podList, client.InNamespace(req.Namespace), client.MatchingFields{ownerKey: rs.Name}); err != nil {
-			return ctrl.Result{}, err
+			return result, err
 		}
 
 		pods = append(pods, podList.Items...)
@@ -111,10 +112,10 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		var podMetrics v1beta1.PodMetrics
 		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pod.Name}, &podMetrics, &client.GetOptions{}); err != nil {
 			if errors.IsNotFound(err) {
-				return ctrl.Result{RequeueAfter: requeuePeriod}, client.IgnoreNotFound(err)
+				return result, client.IgnoreNotFound(err)
 			}
 
-			return ctrl.Result{}, err
+			return result, err
 		}
 
 		for _, metrics := range podMetrics.Containers {
@@ -125,17 +126,17 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// FIXME: if there are 0 replicas, an error is thrown.
 	if err := r.Status().Update(ctx, &scaler); err != nil {
 		logger.Error(err, "unable to update scaler status")
-		return ctrl.Result{}, err
+		return result, err
 	}
 
 	state, err := prepareState(scaler.Status, scaler.Spec)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 
 	decision, err := r.ScalingStrategy.MakeDecision(state)
 	if err != nil {
-		return ctrl.Result{}, err
+		return result, err
 	}
 
 	newResources := interpretResourceScaling(decision)
@@ -146,7 +147,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for _, container := range deployment.Spec.Template.Spec.Containers {
 		resources, ok := newResources[container.Name]
 		if !ok {
-			return ctrl.Result{}, fmt.Errorf("unable to find new resources for container %v", container.Name)
+			return result, fmt.Errorf("unable to find new resources for container %v", container.Name)
 		}
 
 		container.Resources.Requests = resources.Requests
@@ -159,10 +160,10 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if err := r.Update(ctx, &deployment); err != nil {
 		logger.Error(err, "unable to update deployment spec")
-		return ctrl.Result{}, err
+		return result, err
 	}
 
-	return ctrl.Result{RequeueAfter: requeuePeriod}, nil
+	return result, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
