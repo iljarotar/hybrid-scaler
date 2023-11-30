@@ -18,6 +18,24 @@ func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 		containerResources[name] = metrics.Resources
 	}
 
+	desiredReplicas, err := calculateDesiredReplicas(state)
+	if err != nil {
+		return nil, err
+	}
+
+	minReplicas := inf.NewDec(int64(state.MinReplicas), 0)
+	maxReplicas := inf.NewDec(int64(state.MaxReplicas), 0)
+	limitedReplicas := limitScalingValue(desiredReplicas, minReplicas, maxReplicas)
+
+	replicas := limitedReplicas.UnscaledBig().Int64()
+
+	return &strategy.ScalingDecision{
+		Replicas:           int32(replicas),
+		ContainerResources: containerResources,
+	}, nil
+}
+
+func calculateDesiredReplicas(state *strategy.State) (*inf.Dec, error) {
 	currentReplicas := inf.NewDec(int64(state.Replicas), 0)
 	zero := inf.NewDec(0, 0)
 
@@ -51,20 +69,5 @@ func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 		desiredReplicas = desiredReplicasMemory
 	}
 
-	maxReplicas := inf.NewDec(int64(state.Constraints.MaxReplicas), 0)
-	if desiredReplicas.Cmp(maxReplicas) > 0 {
-		desiredReplicas = maxReplicas
-	}
-
-	minReplicas := inf.NewDec(int64(state.Constraints.MinReplicas), 0)
-	if desiredReplicas.Cmp(minReplicas) < 0 {
-		desiredReplicas = minReplicas
-	}
-
-	replicas := desiredReplicas.UnscaledBig().Int64()
-
-	return &strategy.ScalingDecision{
-		Replicas:           int32(replicas),
-		ContainerResources: containerResources,
-	}, nil
+	return desiredReplicas, nil
 }

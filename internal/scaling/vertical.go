@@ -39,13 +39,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 	minCpu := state.Constraints.MinResources.CPU
 	maxCpu := state.Constraints.MaxResources.CPU
 
-	if desiredPodCpuRequests.Cmp(minCpu) < 0 {
-		desiredPodCpuRequests = minCpu
-	}
-
-	if desiredPodCpuRequests.Cmp(maxCpu) > 0 {
-		desiredPodCpuRequests = maxCpu
-	}
+	desiredPodCpuRequests = limitScalingValue(desiredPodCpuRequests, minCpu, maxCpu)
 
 	if podCpuRequests.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("cpu requests cannot be zero")
@@ -53,13 +47,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 
 	desiredPodCpuLimits := new(inf.Dec).Mul(desiredPodCpuRequests, new(inf.Dec).QuoRound(podCpuLimits, podCpuRequests, 8, inf.RoundHalfUp))
 
-	if desiredPodCpuLimits.Cmp(minCpu) < 0 {
-		desiredPodCpuLimits = minCpu
-	}
-
-	if desiredPodCpuLimits.Cmp(maxCpu) > 0 {
-		desiredPodCpuLimits = maxCpu
-	}
+	desiredPodCpuLimits = limitScalingValue(desiredPodCpuLimits, minCpu, maxCpu)
 
 	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(averagePodMemoryUsage, podMemoryRequests, state.TargetUtilization.Memory)
 	if err != nil {
@@ -70,13 +58,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 	minMemory := state.Constraints.MinResources.Memory
 	maxMemory := state.Constraints.MaxResources.Memory
 
-	if desiredPodMemoryRequests.Cmp(minMemory) < 0 {
-		desiredPodMemoryRequests = minMemory
-	}
-
-	if desiredPodMemoryRequests.Cmp(maxMemory) > 0 {
-		desiredPodMemoryRequests = maxMemory
-	}
+	desiredPodMemoryRequests = limitScalingValue(desiredPodMemoryRequests, minMemory, maxMemory)
 
 	if podMemoryRequests.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("memory requests cannot be zero")
@@ -84,13 +66,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 
 	desiredPodMemoryLimits := new(inf.Dec).Mul(desiredPodMemoryRequests, new(inf.Dec).QuoRound(podMemoryLimits, podMemoryRequests, 8, inf.RoundHalfUp))
 
-	if desiredPodMemoryLimits.Cmp(minMemory) < 0 {
-		desiredPodMemoryLimits = minMemory
-	}
-
-	if desiredPodMemoryLimits.Cmp(maxMemory) > 0 {
-		desiredPodMemoryLimits = maxMemory
-	}
+	desiredPodMemoryLimits = limitScalingValue(desiredPodMemoryLimits, minMemory, maxMemory)
 
 	cpuRounder := inf.RoundHalfUp
 	memoryRounder := inf.RoundHalfUp

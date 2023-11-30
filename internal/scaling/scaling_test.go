@@ -48,7 +48,7 @@ func TestHybridHorizontalUp(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := HybridHorizontalUp(tt.args.state)
+			got, err := Hybrid(tt.args.state)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("HybridHorizontalUp() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -74,7 +74,7 @@ func TestHybridHorizontalDown(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := HybridHorizontalDown(tt.args.state)
+			got, err := HybridInverse(tt.args.state)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("HybridHorizontalDown() error = %v, wantErr %v", err, tt.wantErr)
 				return

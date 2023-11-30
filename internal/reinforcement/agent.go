@@ -11,18 +11,18 @@ import (
 type action string
 
 const (
-	actionNone                  action = "NONE"
-	actionVertical              action = "VERTICAL"
-	actionHorizontal            action = "HORIZONAL"
-	actionVerticalHorizontalUp  action = "VERTICAL_HORIZONTAL_UP"
-	actionVerticalHorizontaDown action = "VERTICAL_HORIZONTAL_DOWN"
+	actionNone          action = "NONE"
+	actionVertical      action = "VERTICAL"
+	actionHorizontal    action = "HORIZONAL"
+	actionHybrid        action = "HYBRID"
+	actionHybridInverse action = "HYBRID_INVERSE"
 )
 
 type actions []action
 
 type learningMethod interface {
-	Update(s state, a action, alpha, gamma float64) error
-	GetGreedyActionsAmong(actions) actions
+	Update(s *state, a action, alpha, gamma float64) error
+	GetGreedyActionsAmong(as actions) actions
 }
 
 // percentageQuantum is used to discretize the resource usage very roughly
@@ -64,9 +64,12 @@ func NewScalingAgent() *scalingAgent {
 }
 
 func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDecision, error) {
-	s := convertState(*state)
+	s, err := convertState(state)
+	if err != nil {
+		return nil, err
+	}
 
-	err := a.method.Update(s, a.previousAction, a.alpha, a.gamma)
+	err = a.method.Update(s, a.previousAction, a.alpha, a.gamma)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +90,7 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 	return decision, nil
 }
 
-func convertState(s strategy.State) state {
+func convertState(s *strategy.State) (*state, error) {
 	cpuUsageInPercent := inf.NewDec(0, 0)
 	memoryUsageInPercent := inf.NewDec(0, 0)
 	zero := inf.NewDec(0, 0)
@@ -97,13 +100,15 @@ func convertState(s strategy.State) state {
 	podMemoryLimits := s.PodMetrics.Limits.Memory
 	podMemoryUsage := s.PodMetrics.ResourceUsage.Memory
 
-	if podCpuLimits.Cmp(zero) != 0 {
-		cpuUsageInPercent.QuoRound(podCpuUsage, podCpuLimits, 8, inf.RoundHalfUp)
+	if podCpuLimits.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("cpu limits cannot be zero")
 	}
+	cpuUsageInPercent.QuoRound(podCpuUsage, podCpuLimits, 8, inf.RoundHalfUp)
 
-	if podMemoryLimits.Cmp(zero) != 0 {
-		memoryUsageInPercent.QuoRound(podMemoryUsage, podMemoryLimits, 8, inf.RoundHalfUp)
+	if podMemoryLimits.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("memory limits cannot be zero")
 	}
+	memoryUsageInPercent.QuoRound(podMemoryUsage, podMemoryLimits, 8, inf.RoundHalfUp)
 
 	cpuUsageQuantized := quantizePercentage(cpuUsageInPercent, percentageQuantum)
 	memoryUsageQuantized := quantizePercentage(memoryUsageInPercent, percentageQuantum)
@@ -113,13 +118,13 @@ func convertState(s strategy.State) state {
 
 	name := fmt.Sprintf("%d_%d_%d_%v", s.Replicas, cpuUsageQuantized, memoryUsageQuantized, latencyThresholdExceeded)
 
-	return state{
+	return &state{
 		Name:                     stateName(name),
 		Replicas:                 s.Replicas,
 		LatencyThresholdExceeded: latencyThresholdExceeded,
 		CpuUsage:                 cpuUsageQuantized,
 		MemoryUsage:              memoryUsageQuantized,
-	}
+	}, nil
 }
 
 func convertAction(a action, s *strategy.State) (*strategy.ScalingDecision, error) {
@@ -141,16 +146,16 @@ func convertAction(a action, s *strategy.State) (*strategy.ScalingDecision, erro
 		return scaling.Horizontal(s)
 	case actionVertical:
 		return scaling.Vertical(s)
-	case actionVerticalHorizontalUp:
-		return scaling.HybridHorizontalUp(s)
-	case actionVerticalHorizontaDown:
-		return scaling.HybridHorizontalDown(s)
+	case actionHybrid:
+		return scaling.Hybrid(s)
+	case actionHybridInverse:
+		return scaling.HybridInverse(s)
 	default:
 		return noChange, nil
 	}
 }
 
-func getPossibleActionsForState(state) actions {
+func getPossibleActionsForState(s *state) actions {
 	actions := make(actions, 0)
 
 	// TODO: implement
