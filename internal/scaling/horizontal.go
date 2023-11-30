@@ -18,14 +18,19 @@ func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 		containerResources[name] = metrics.Resources
 	}
 
-	cpuUsage := state.PodMetrics.ResourceUsage.CPU
-	memoryUsage := state.PodMetrics.ResourceUsage.Memory
+	currentReplicas := inf.NewDec(int64(state.Replicas), 0)
+	zero := inf.NewDec(0, 0)
+
+	if currentReplicas.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("cannot calculate new number of replicas, current replicas is zero")
+	}
+
+	averagePodCpuUsage := new(inf.Dec).QuoRound(state.PodMetrics.ResourceUsage.CPU, currentReplicas, 8, inf.RoundHalfUp)
+	averagePodMemoryUsage := new(inf.Dec).QuoRound(state.PodMetrics.ResourceUsage.Memory, currentReplicas, 8, inf.RoundHalfUp)
 	cpuRequests := state.PodMetrics.Requests.CPU
 	memoryRequests := state.PodMetrics.Requests.Memory
 
-	currentReplicas := inf.NewDec(int64(state.Replicas), 0)
-
-	cpuCurrentToTargetRatio, err := currentToTargetUtilizationRatio(cpuUsage, cpuRequests, state.TargetUtilization.CPU)
+	cpuCurrentToTargetRatio, err := currentToTargetUtilizationRatio(averagePodCpuUsage, cpuRequests, state.TargetUtilization.CPU)
 	if err != nil {
 		return nil, fmt.Errorf("unable to calculate cpu current to target utilization ratio, %w", err)
 	}
@@ -33,7 +38,7 @@ func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 	desiredReplicasCpu := new(inf.Dec).Mul(currentReplicas, cpuCurrentToTargetRatio)
 	desiredReplicasCpu.Round(desiredReplicasCpu, 0, inf.RoundCeil)
 
-	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(memoryUsage, memoryRequests, state.TargetUtilization.Memory)
+	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(averagePodMemoryUsage, memoryRequests, state.TargetUtilization.Memory)
 	if err != nil {
 		return nil, fmt.Errorf("unable to calculate memory current to target utilization ratio, %w", err)
 	}

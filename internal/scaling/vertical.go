@@ -14,9 +14,15 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 		containerResources[name] = metrics.Resources
 	}
 
+	currentReplicas := inf.NewDec(int64(state.Replicas), 0)
 	zero := inf.NewDec(0, 0)
-	cpuUsage := state.PodMetrics.ResourceUsage.CPU
-	memoryUsage := state.PodMetrics.ResourceUsage.Memory
+
+	if currentReplicas.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("unable to calculate new pod resources, current number of replicas is zero")
+	}
+
+	averagePodCpuUsage := new(inf.Dec).QuoRound(state.PodMetrics.ResourceUsage.CPU, currentReplicas, 8, inf.RoundHalfUp)
+	averagePodMemoryUsage := new(inf.Dec).QuoRound(state.PodMetrics.ResourceUsage.Memory, currentReplicas, 8, inf.RoundHalfUp)
 
 	podCpuRequests := state.PodMetrics.Requests.CPU
 	podMemoryRequests := state.PodMetrics.Requests.Memory
@@ -24,7 +30,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 	podCpuLimits := state.PodMetrics.Limits.CPU
 	podMemoryLimits := state.PodMetrics.Limits.Memory
 
-	cpuCurrentToTargetRatio, err := currentToTargetUtilizationRatio(cpuUsage, podCpuRequests, state.TargetUtilization.CPU)
+	cpuCurrentToTargetRatio, err := currentToTargetUtilizationRatio(averagePodCpuUsage, podCpuRequests, state.TargetUtilization.CPU)
 	if err != nil {
 		return nil, fmt.Errorf("unable to calculate cpu current to target utilization ratio, %w", err)
 	}
@@ -55,7 +61,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 		desiredPodCpuLimits = maxCpu
 	}
 
-	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(memoryUsage, podMemoryRequests, state.TargetUtilization.Memory)
+	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(averagePodMemoryUsage, podMemoryRequests, state.TargetUtilization.Memory)
 	if err != nil {
 		return nil, fmt.Errorf("unable to calculate memory current to target utilization ratio, %w", err)
 	}
