@@ -27,7 +27,7 @@ func Horizontal(state *strategy.State) (*strategy.ScalingDecision, error) {
 	maxReplicas := inf.NewDec(int64(state.MaxReplicas), 0)
 	limitedReplicas := limitScalingValue(desiredReplicas, minReplicas, maxReplicas)
 
-	replicas := limitedReplicas.UnscaledBig().Int64()
+	replicas := DecToInt64(limitedReplicas)
 
 	return &strategy.ScalingDecision{
 		Replicas:           int32(replicas),

@@ -35,15 +35,12 @@ var percentageQuantum = inf.NewDec(25, 0)
 type stateName string
 
 type state struct {
-	Name                     stateName
-	Replicas                 int32
-	LatencyThresholdExceeded bool
-
-	// CpuUsage of pod in `percentageQuantum`% steps
-	CpuUsage int64
-
-	// MemoryUsage of pod in `percentageQuantum`% steps
-	MemoryUsage int64
+	Name                        stateName
+	Replicas                    int32
+	LatencyThresholdExceeded    bool
+	CpuRequests, MemoryRequests *inf.Dec
+	// cpu and memory usage in [percentageQuantum]% steps
+	CpuUsage, MemoryUsage int64
 }
 
 type scalingAgent struct {
@@ -137,6 +134,8 @@ func convertState(s *strategy.State) (*state, error) {
 		Name:                     stateName(name),
 		Replicas:                 s.Replicas,
 		LatencyThresholdExceeded: latencyThresholdExceeded,
+		CpuRequests:              s.PodMetrics.Requests.CPU,
+		MemoryRequests:           s.PodMetrics.Requests.Memory,
 		CpuUsage:                 cpuUsageQuantized,
 		MemoryUsage:              memoryUsageQuantized,
 	}, nil
@@ -196,6 +195,5 @@ func iAmGreedy(epsilon float64) (bool, error) {
 func quantizePercentage(value, quantum *inf.Dec) int64 {
 	quantity := new(inf.Dec).QuoRound(value, quantum, 0, inf.RoundDown)
 	quantized := new(inf.Dec).Mul(quantity, quantum)
-
-	return quantized.UnscaledBig().Int64()
+	return scaling.DecToInt64(quantized)
 }

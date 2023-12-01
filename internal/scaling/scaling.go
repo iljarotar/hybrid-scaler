@@ -2,6 +2,7 @@ package scaling
 
 import (
 	"fmt"
+	"math"
 
 	"gopkg.in/inf.v0"
 )
@@ -36,4 +37,13 @@ func limitScalingValue(desired, min, max *inf.Dec) *inf.Dec {
 	}
 
 	return desired
+}
+
+// truncates fractional digits and converts `value` to `int64`
+func DecToInt64(value *inf.Dec) int64 {
+	scale := value.Scale()
+	factor := math.Pow10(-int(scale))
+	floatValue := float64(value.UnscaledBig().Int64()) * factor
+
+	return int64(floatValue)
 }
