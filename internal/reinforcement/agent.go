@@ -1,7 +1,9 @@
 package reinforcement
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 
 	"github.com/iljarotar/hybrid-scaler/internal/scaling"
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
@@ -48,18 +50,21 @@ type scalingAgent struct {
 	method                learningMethod
 	epsilon, alpha, gamma float64
 	previousAction        action
+	possibleActions       actions
 }
 
 func NewScalingAgent() *scalingAgent {
 	method := QLearning{}
 	var a action
+	possibleActions := []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridInverse}
 
 	return &scalingAgent{
-		method:         &method,
-		epsilon:        0,
-		alpha:          0,
-		gamma:          0,
-		previousAction: a,
+		method:          &method,
+		epsilon:         0,
+		alpha:           0,
+		gamma:           0,
+		previousAction:  a,
+		possibleActions: possibleActions,
 	}
 }
 
@@ -74,18 +79,28 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 		return nil, err
 	}
 
-	actions := getPossibleActionsForState(s)
-	if iAmGreedy(a.epsilon) {
-		actions = a.method.GetGreedyActionsAmong(actions)
+	greedy, err := iAmGreedy(a.epsilon)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decide which action to choose, %w", err)
 	}
 
-	action := getRandomActionFrom(actions)
-	decision, err := convertAction(action, state)
+	possibleActions := a.possibleActions
+
+	if greedy {
+		possibleActions = a.method.GetGreedyActionsAmong(a.possibleActions)
+	}
+
+	action, err := getRandomActionFrom(possibleActions)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decide which action to choose, %w", err)
+	}
+
+	decision, err := convertAction(*action, state)
 	if err != nil {
 		return nil, err
 	}
 
-	a.previousAction = action
+	a.previousAction = *action
 
 	return decision, nil
 }
@@ -155,28 +170,27 @@ func convertAction(a action, s *strategy.State) (*strategy.ScalingDecision, erro
 	}
 }
 
-func getPossibleActionsForState(s *state) actions {
-	actions := make(actions, 0)
+func getRandomActionFrom(as actions) (*action, error) {
+	index, err := rand.Int(rand.Reader, big.NewInt(int64(len(as))))
+	if err != nil {
+		return nil, err
+	}
 
-	// TODO: implement
+	idx := int(index.Int64())
+	a := as[idx]
 
-	return actions
+	return &a, nil
 }
 
-func getRandomActionFrom(actions) action {
-	var a action
+func iAmGreedy(epsilon float64) (bool, error) {
+	random, err := rand.Int(rand.Reader, big.NewInt(100))
+	if err != nil {
+		return false, err
+	}
 
-	// TODO: implement
+	val := float64(random.Int64())
 
-	return a
-}
-
-func iAmGreedy(epsilon float64) bool {
-	var greedy bool
-
-	// TODO: implement
-
-	return greedy
+	return val >= epsilon*100, nil
 }
 
 func quantizePercentage(value, quantum *inf.Dec) int64 {

@@ -41,13 +41,8 @@ spec:
                 format: int32
                 type: integer
               resourcePolicy:
+                description: ResourcePolicy must be applied on a pod level
                 properties:
-                  controlledResources:
-                    items:
-                      description: ResourceName is the name identifying various resources
-                        in a ResourceList.
-                      type: string
-                    type: array
                   maxAllowed:
                     additionalProperties:
                       anyOf:
@@ -74,7 +69,6 @@ spec:
                       type: integer
                     type: object
                 required:
-                - controlledResources
                 - maxAllowed
                 - minAllowed
                 - targetUtilization

@@ -37,10 +37,9 @@ type HybridScalerSpec struct {
 }
 
 type ResourcePolicy struct {
-	MinAllowed          corev1.ResourceList           `json:"minAllowed"`
-	MaxAllowed          corev1.ResourceList           `json:"maxAllowed"`
-	TargetUtilization   map[corev1.ResourceName]int32 `json:"targetUtilization"`
-	ControlledResources *[]corev1.ResourceName        `json:"controlledResources"`
+	MinAllowed        corev1.ResourceList           `json:"minAllowed"`
+	MaxAllowed        corev1.ResourceList           `json:"maxAllowed"`
+	TargetUtilization map[corev1.ResourceName]int32 `json:"targetUtilization"`
 }
 
 type ContainerResources struct {
