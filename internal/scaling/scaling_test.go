@@ -34,7 +34,7 @@ func TestHorizontal(t *testing.T) {
 	}
 }
 
-func TestHybridHorizontalUp(t *testing.T) {
+func TestHybrid(t *testing.T) {
 	type args struct {
 		state *strategy.State
 	}
@@ -50,17 +50,17 @@ func TestHybridHorizontalUp(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := Hybrid(tt.args.state)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("HybridHorizontalUp() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Hybrid() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("HybridHorizontalUp() = %v, want %v", got, tt.want)
+				t.Errorf("Hybrid() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestHybridHorizontalDown(t *testing.T) {
+func TestHybridInverse(t *testing.T) {
 	type args struct {
 		state *strategy.State
 	}
@@ -76,33 +76,61 @@ func TestHybridHorizontalDown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := HybridInverse(tt.args.state)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("HybridHorizontalDown() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("HybridInverse() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("HybridHorizontalDown() = %v, want %v", got, tt.want)
+				t.Errorf("HybridInverse() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
 func Test_currentToTargetUtilizationRatio(t *testing.T) {
-	type args struct {
+	tests := []struct {
+		name              string
 		usage             *inf.Dec
 		requests          *inf.Dec
 		targetUtilization *inf.Dec
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *inf.Dec
-		wantErr bool
+		want              *inf.Dec
+		wantErr           bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:              "requests is zero",
+			usage:             inf.NewDec(100, 0),
+			requests:          inf.NewDec(0, 0),
+			targetUtilization: inf.NewDec(10, 0),
+			want:              nil,
+			wantErr:           true,
+		},
+		{
+			name:              "target utilization is zero",
+			usage:             inf.NewDec(100, 0),
+			requests:          inf.NewDec(10, 0),
+			targetUtilization: inf.NewDec(0, 0),
+			want:              nil,
+			wantErr:           true,
+		},
+		{
+			name:              "utilization below target",
+			usage:             inf.NewDec(50, 0),
+			requests:          inf.NewDec(1000, 1),
+			targetUtilization: inf.NewDec(8, 1),
+			want:              inf.NewDec(62500000, 8),
+			wantErr:           false,
+		},
+		{
+			name:              "utilization exceeds target",
+			usage:             inf.NewDec(300, 0),
+			requests:          inf.NewDec(2000, 1),
+			targetUtilization: inf.NewDec(50, 2),
+			want:              inf.NewDec(300000000, 8),
+			wantErr:           false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := currentToTargetUtilizationRatio(tt.args.usage, tt.args.requests, tt.args.targetUtilization)
+			got, err := currentToTargetUtilizationRatio(tt.usage, tt.requests, tt.targetUtilization)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("currentToTargetUtilizationRatio() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -135,6 +163,217 @@ func TestVertical(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Vertical() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_calculateDesiredReplicas(t *testing.T) {
+	tests := []struct {
+		name    string
+		state   *strategy.State
+		want    *inf.Dec
+		wantErr bool
+	}{
+		{
+			name:    "replicas 0",
+			state:   &strategy.State{},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "scale up",
+			state: &strategy.State{
+				Replicas: 1,
+				PodMetrics: strategy.Metrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(200, 0),
+						Memory: inf.NewDec(200, 0),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(50, 2),
+				},
+			},
+			want:    inf.NewDec(2, 0),
+			wantErr: false,
+		},
+		{
+			name: "scale down",
+			state: &strategy.State{
+				Replicas: 10,
+				PodMetrics: strategy.Metrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(25, -1),
+						Memory: inf.NewDec(25, -1),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(50, 2),
+				},
+			},
+			want:    inf.NewDec(5, 0),
+			wantErr: false,
+		},
+		{
+			// TODO: continue here... scale up to max, down to min, use maximum of cpu and memory recommendation in both directions
+			name: "scale up to max",
+			state: &strategy.State{
+				Replicas: 10,
+				PodMetrics: strategy.Metrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(25, -1),
+						Memory: inf.NewDec(25, -1),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(50, 2),
+				},
+			},
+			want:    inf.NewDec(5, 0),
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := calculateDesiredReplicas(tt.state)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("calculateDesiredReplicas() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("calculateDesiredReplicas() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_limitScalingValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		desired *inf.Dec
+		min     *inf.Dec
+		max     *inf.Dec
+		want    *inf.Dec
+	}{
+		{
+			name:    "no limit necessary",
+			desired: inf.NewDec(5, 0),
+			min:     inf.NewDec(4, 0),
+			max:     inf.NewDec(6, 0),
+			want:    inf.NewDec(5, 0),
+		},
+		{
+			name:    "limit to min",
+			desired: inf.NewDec(3, 0),
+			min:     inf.NewDec(4, 0),
+			max:     inf.NewDec(6, 0),
+			want:    inf.NewDec(4, 0),
+		},
+		{
+			name:    "limit to max",
+			desired: inf.NewDec(7, 0),
+			min:     inf.NewDec(4, 0),
+			max:     inf.NewDec(6, 0),
+			want:    inf.NewDec(6, 0),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := limitScalingValue(tt.desired, tt.min, tt.max); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("limitScalingValue() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecToInt64(t *testing.T) {
+	tests := []struct {
+		name  string
+		value *inf.Dec
+		want  int64
+	}{
+		{
+			name:  "zero",
+			value: inf.NewDec(0, 0),
+			want:  0,
+		},
+		{
+			name:  "positive integer with scale 0",
+			value: inf.NewDec(10, 0),
+			want:  10,
+		},
+		{
+			name:  "positive integer with positive scale",
+			value: inf.NewDec(10, 1),
+			want:  1,
+		},
+		{
+			name:  "positive integer with negative scale",
+			value: inf.NewDec(10, -1),
+			want:  100,
+		},
+		{
+			name:  "negative integer with scale 0",
+			value: inf.NewDec(-10, 0),
+			want:  -10,
+		},
+		{
+			name:  "negative integer with positive scale",
+			value: inf.NewDec(-50, 1),
+			want:  -5,
+		},
+		{
+			name:  "negative integer with negative scale",
+			value: inf.NewDec(-50, -1),
+			want:  -500,
+		},
+		{
+			name:  "positive rational to zero",
+			value: inf.NewDec(33, 2),
+			want:  0,
+		},
+		{
+			name:  "negative rational to zero",
+			value: inf.NewDec(-26, 2),
+			want:  0,
+		},
+		{
+			name:  "positive rational",
+			value: inf.NewDec(246, 1),
+			want:  24,
+		},
+		{
+			name:  "negative rational",
+			value: inf.NewDec(-534, 2),
+			want:  -5,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DecToInt64(tt.value); got != tt.want {
+				t.Errorf("DecToInt64() = %v, want %v", got, tt.want)
 			}
 		})
 	}
