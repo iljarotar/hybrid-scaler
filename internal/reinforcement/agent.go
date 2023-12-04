@@ -23,12 +23,21 @@ const (
 type actions []action
 
 type learningMethod interface {
-	Update(s *state, a action, alpha, gamma float64) error
-	GetGreedyActionsAmong(as actions) actions
+	Update(previousState, currentState *state, previousAction *action) error
+	GetGreedyActions(s *state) actions
 }
 
-// percentageQuantum is used to discretize the resource usage very roughly
-var percentageQuantum = inf.NewDec(25, 0)
+var (
+	// percentageQuantum is used to discretize the resource usage very roughly
+	percentageQuantum = inf.NewDec(25, 0)
+
+	cpuCost            = inf.NewDec(0, 0)
+	memoryCost         = inf.NewDec(0, 0)
+	performancePenalty = inf.NewDec(0, 0)
+
+	alpha = inf.NewDec(0, 0)
+	gamma = inf.NewDec(0, 0)
+)
 
 // stateName represents a state as a string of the form
 // <replicas>_<cpu-usage>_<memory-usage>_<latency-threshold-exceeded>
@@ -44,23 +53,20 @@ type state struct {
 }
 
 type scalingAgent struct {
-	method                learningMethod
-	epsilon, alpha, gamma float64
-	previousAction        action
-	possibleActions       actions
+	method          learningMethod
+	epsilon         float64
+	previousAction  *action
+	possibleActions actions
+	previousState   *state
 }
 
 func NewScalingAgent() *scalingAgent {
-	method := QLearning{}
-	var a action
 	possibleActions := []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridInverse}
+	method := NewQLearning(cpuCost, memoryCost, performancePenalty, alpha, gamma, possibleActions)
 
 	return &scalingAgent{
-		method:          &method,
+		method:          method,
 		epsilon:         0,
-		alpha:           0,
-		gamma:           0,
-		previousAction:  a,
 		possibleActions: possibleActions,
 	}
 }
@@ -71,7 +77,7 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 		return nil, err
 	}
 
-	err = a.method.Update(s, a.previousAction, a.alpha, a.gamma)
+	err = a.method.Update(a.previousState, s, a.previousAction)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +90,7 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 	possibleActions := a.possibleActions
 
 	if greedy {
-		possibleActions = a.method.GetGreedyActionsAmong(a.possibleActions)
+		possibleActions = a.method.GetGreedyActions(s)
 	}
 
 	action, err := getRandomActionFrom(possibleActions)
@@ -97,7 +103,8 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 		return nil, err
 	}
 
-	a.previousAction = *action
+	a.previousAction = action
+	a.previousState = s
 
 	return decision, nil
 }
