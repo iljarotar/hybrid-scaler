@@ -22,11 +22,6 @@ const (
 
 type actions []action
 
-type learningMethod interface {
-	Update(previousState, currentState *state, previousAction *action) error
-	GetGreedyActions(s *state) actions
-}
-
 var (
 	// percentageQuantum is used to discretize the resource usage very roughly
 	percentageQuantum = inf.NewDec(25, 0)
@@ -52,8 +47,8 @@ type state struct {
 	CpuUsage, MemoryUsage int64
 }
 
-type scalingAgent struct {
-	method          learningMethod
+type qAgent struct {
+	QLearning
 	epsilon         float64
 	previousAction  *action
 	possibleActions actions
@@ -62,60 +57,63 @@ type scalingAgent struct {
 	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec
 }
 
-func NewScalingAgent() *scalingAgent {
+func NewQAgent() *qAgent {
 	possibleActions := []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridInverse}
-	method := NewQLearning(cpuCost, memoryCost, performancePenalty, alpha, gamma, possibleActions)
+	qLearning := NewQLearning(cpuCost, memoryCost, performancePenalty, alpha, gamma, possibleActions)
 
-	return &scalingAgent{
-		method:          method,
+	return &qAgent{
+		QLearning:       *qLearning,
 		epsilon:         0,
 		possibleActions: possibleActions,
 	}
 }
 
-func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDecision, error) {
+func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*strategy.ScalingDecision, []byte, error) {
 	if a.cpuLimitsToRequestsRatio == nil || a.memoryLimitsToRequestsRatio == nil {
 		err := a.initializeLimitsToRequestRatios(state)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	s, err := convertState(state)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	err = a.method.Update(a.previousState, s, a.previousAction)
+	newLearningState, err := a.Update(a.previousState, s, a.previousAction, learningState)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	greedy, err := iAmGreedy(a.epsilon)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decide which action to choose, %w", err)
+		return nil, nil, fmt.Errorf("cannot decide which action to choose, %w", err)
 	}
 
 	possibleActions := a.possibleActions
 
 	if greedy {
-		possibleActions = a.method.GetGreedyActions(s)
+		possibleActions, err = a.GetGreedyActions(s, learningState)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot get greedy actions, %w", err)
+		}
 	}
 
 	action, err := getRandomActionFrom(possibleActions)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decide which action to choose, %w", err)
+		return nil, nil, fmt.Errorf("cannot decide which action to choose, %w", err)
 	}
 
 	decision, err := a.convertAction(*action, state)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	a.previousAction = action
 	a.previousState = s
 
-	return decision, nil
+	return decision, newLearningState, nil
 }
 
 func convertState(s *strategy.State) (*state, error) {
@@ -157,7 +155,7 @@ func convertState(s *strategy.State) (*state, error) {
 	}, nil
 }
 
-func (a *scalingAgent) convertAction(chosenAction action, s *strategy.State) (*strategy.ScalingDecision, error) {
+func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strategy.ScalingDecision, error) {
 	noChange := &strategy.ScalingDecision{
 		Replicas:           s.Replicas,
 		ContainerResources: s.ContainerResources,
@@ -208,7 +206,7 @@ func quantizePercentage(value, quantum *inf.Dec) int64 {
 	return scaling.DecToInt64(quantized)
 }
 
-func (a *scalingAgent) initializeLimitsToRequestRatios(s *strategy.State) error {
+func (a *qAgent) initializeLimitsToRequestRatios(s *strategy.State) error {
 	zero := inf.NewDec(0, 0)
 
 	if s.PodMetrics.Requests.CPU.Cmp(zero) == 0 {

@@ -3,7 +3,7 @@ package strategy
 import "gopkg.in/inf.v0"
 
 type ScalingStrategy interface {
-	MakeDecision(state *State) (*ScalingDecision, error)
+	MakeDecision(state *State, learningState []byte) (*ScalingDecision, []byte, error)
 }
 
 // State represents the current state

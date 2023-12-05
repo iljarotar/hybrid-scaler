@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	"k8s.io/api/autoscaling/v2"
+	v2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -62,8 +62,9 @@ type HybridScaler struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   HybridScalerSpec   `json:"spec,omitempty"`
-	Status HybridScalerStatus `json:"status,omitempty"`
+	Spec          HybridScalerSpec   `json:"spec,omitempty"`
+	Status        HybridScalerStatus `json:"status,omitempty"`
+	LearningState []byte             `json:"learningState,omitempty"`
 }
 
 //+kubebuilder:object:root=true

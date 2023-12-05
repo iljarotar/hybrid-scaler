@@ -123,19 +123,21 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	// FIXME: if there are 0 replicas, an error is thrown.
-	if err := r.Status().Update(ctx, &scaler); err != nil {
-		logger.Error(err, "unable to update scaler status")
-		return result, err
-	}
-
 	state, err := prepareState(scaler.Status, scaler.Spec)
 	if err != nil {
 		return result, err
 	}
 
-	decision, err := r.ScalingStrategy.MakeDecision(state)
+	decision, learningState, err := r.ScalingStrategy.MakeDecision(state, scaler.LearningState)
 	if err != nil {
+		return result, err
+	}
+
+	scaler.LearningState = learningState
+
+	// FIXME: if there are 0 replicas, an error is thrown.
+	if err := r.Status().Update(ctx, &scaler); err != nil {
+		logger.Error(err, "unable to update scaler status")
 		return result, err
 	}
 

@@ -25,9 +25,11 @@ type qTableRow map[action]*inf.Dec
 
 var initialValue = inf.NewDec(0, 0)
 
-func (l *QLearning) Update(previousState, currentState *state, previousAction *action) error {
+// TODO: decode learningState as a qTable, update the table, encode it to gob and return the gob value
+// after that remove qTable from QLearning struct
+func (l *QLearning) Update(previousState, currentState *state, previousAction *action, learningState []byte) ([]byte, error) {
 	if previousAction == nil || previousState == nil {
-		return nil
+		return learningState, nil
 	}
 
 	if _, ok := l.qTable[previousState.Name]; !ok {
@@ -54,15 +56,15 @@ func (l *QLearning) Update(previousState, currentState *state, previousAction *a
 
 	l.qTable[previousState.Name][*previousAction] = newValue
 
-	return nil
+	return learningState, nil
 }
 
-func (l *QLearning) GetGreedyActions(s *state) actions {
+func (l *QLearning) GetGreedyActions(s *state, learningState []byte) (actions, error) {
 	greedyActions := make(actions, 0)
 	bestValue := l.bestActionValueInState(s)
 
 	if _, ok := l.qTable[s.Name]; !ok {
-		return l.allActions
+		return l.allActions, nil
 	}
 
 	row := l.qTable[s.Name]
@@ -73,7 +75,7 @@ func (l *QLearning) GetGreedyActions(s *state) actions {
 		}
 	}
 
-	return greedyActions
+	return greedyActions, nil
 }
 
 func (l *QLearning) evaluateCost(s *state) *inf.Dec {
