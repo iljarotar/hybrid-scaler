@@ -8,36 +8,29 @@ import (
 )
 
 // Recommends new resource requests and limits keeping ratios between both and each container's share of the pod's resources
-func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
+func Vertical(s *strategy.State) (*strategy.ScalingDecision, error) {
 	containerResources := make(strategy.ContainerResources)
-	for name, metrics := range state.ContainerMetrics {
-		containerResources[name] = metrics.Resources
-	}
-
-	currentReplicas := inf.NewDec(int64(state.Replicas), 0)
+	currentReplicas := inf.NewDec(int64(s.Replicas), 0)
 	zero := inf.NewDec(0, 0)
 
 	if currentReplicas.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("unable to calculate new pod resources, current number of replicas is zero")
 	}
 
-	averagePodCpuUsage := new(inf.Dec).QuoRound(state.PodMetrics.ResourceUsage.CPU, currentReplicas, 8, inf.RoundHalfUp)
-	averagePodMemoryUsage := new(inf.Dec).QuoRound(state.PodMetrics.ResourceUsage.Memory, currentReplicas, 8, inf.RoundHalfUp)
+	podCpuRequests := s.PodMetrics.Requests.CPU
+	podMemoryRequests := s.PodMetrics.Requests.Memory
 
-	podCpuRequests := state.PodMetrics.Requests.CPU
-	podMemoryRequests := state.PodMetrics.Requests.Memory
+	podCpuLimits := s.PodMetrics.Limits.CPU
+	podMemoryLimits := s.PodMetrics.Limits.Memory
 
-	podCpuLimits := state.PodMetrics.Limits.CPU
-	podMemoryLimits := state.PodMetrics.Limits.Memory
-
-	cpuCurrentToTargetRatio, err := currentToTargetUtilizationRatio(averagePodCpuUsage, podCpuRequests, state.TargetUtilization.CPU)
+	cpuCurrentToTargetRatio, err := currentToTargetUtilizationRatio(s.PodMetrics.ResourceUsage.CPU, podCpuRequests, s.TargetUtilization.CPU)
 	if err != nil {
 		return nil, fmt.Errorf("unable to calculate cpu current to target utilization ratio, %w", err)
 	}
 
 	desiredPodCpuRequests := new(inf.Dec).Mul(podCpuRequests, cpuCurrentToTargetRatio)
-	minCpu := state.Constraints.MinResources.CPU
-	maxCpu := state.Constraints.MaxResources.CPU
+	minCpu := s.Constraints.MinResources.CPU
+	maxCpu := s.Constraints.MaxResources.CPU
 
 	desiredPodCpuRequests = limitScalingValue(desiredPodCpuRequests, minCpu, maxCpu)
 
@@ -49,14 +42,14 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 
 	desiredPodCpuLimits = limitScalingValue(desiredPodCpuLimits, minCpu, maxCpu)
 
-	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(averagePodMemoryUsage, podMemoryRequests, state.TargetUtilization.Memory)
+	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(s.PodMetrics.ResourceUsage.Memory, podMemoryRequests, s.TargetUtilization.Memory)
 	if err != nil {
 		return nil, fmt.Errorf("unable to calculate memory current to target utilization ratio, %w", err)
 	}
 
 	desiredPodMemoryRequests := new(inf.Dec).Mul(podMemoryRequests, memoryCurrentToTargetRatio)
-	minMemory := state.Constraints.MinResources.Memory
-	maxMemory := state.Constraints.MaxResources.Memory
+	minMemory := s.Constraints.MinResources.Memory
+	maxMemory := s.Constraints.MaxResources.Memory
 
 	desiredPodMemoryRequests = limitScalingValue(desiredPodMemoryRequests, minMemory, maxMemory)
 
@@ -87,7 +80,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 		memoryRounder = inf.RoundDown
 	}
 
-	for name, resources := range containerResources {
+	for name, resources := range s.ContainerResources {
 		cpuRequests := resources.Requests.CPU
 		cpuLimits := resources.Limits.CPU
 
@@ -113,7 +106,7 @@ func Vertical(state *strategy.State) (*strategy.ScalingDecision, error) {
 	}
 
 	return &strategy.ScalingDecision{
-		Replicas:           state.Replicas,
+		Replicas:           s.Replicas,
 		ContainerResources: containerResources,
 	}, nil
 }

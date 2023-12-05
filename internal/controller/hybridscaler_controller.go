@@ -240,7 +240,7 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 	podCpuLimits := inf.NewDec(0, 0)
 	podMemoryLimits := inf.NewDec(0, 0)
 
-	containerMetricsMap := make(strategy.ContainerMetrics)
+	containerResources := make(strategy.ContainerResources)
 
 	for _, metrics := range status.ContainerMetrics {
 		cpuUsage := metrics.Usage.Cpu().AsDec()
@@ -267,13 +267,7 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 			},
 		}
 
-		containerMetricsMap[metrics.Name] = strategy.Metrics{
-			ResourceUsage: strategy.ResourcesList{
-				CPU:    cpuUsage,
-				Memory: memoryUsage,
-			},
-			Resources: resources,
-		}
+		containerResources[metrics.Name] = resources
 
 		podCpuRequests.Add(podCpuRequests, cpuRequests)
 		podCpuLimits.Add(podCpuLimits, cpuLimits)
@@ -284,10 +278,20 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 		podMemoryUsage.Add(podMemoryUsage, memoryUsage)
 	}
 
+	if status.Replicas == 0 {
+		return nil, fmt.Errorf("number of replicas should not be zero")
+	}
+
+	replicas := inf.NewDec(int64(status.Replicas), 0)
+	averagePodCpuUsage := new(inf.Dec).QuoRound(podCpuUsage, replicas, 8, inf.RoundHalfUp)
+	averagePodMemoryUsage := new(inf.Dec).QuoRound(podMemoryUsage, replicas, 8, inf.RoundHalfUp)
+
+	// TODO: also add pod overhead to average metrics
+
 	podMetrics := strategy.Metrics{
 		ResourceUsage: strategy.ResourcesList{
-			CPU:    podCpuUsage,
-			Memory: podMemoryUsage,
+			CPU:    averagePodCpuUsage,
+			Memory: averagePodMemoryUsage,
 		},
 		Resources: strategy.Resources{
 			Requests: strategy.ResourcesList{
@@ -330,11 +334,11 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 	}
 
 	state := &strategy.State{
-		Replicas:          status.Replicas,
-		ContainerMetrics:  containerMetricsMap,
-		Constraints:       constraints,
-		PodMetrics:        podMetrics,
-		TargetUtilization: targetUtilization,
+		Replicas:           status.Replicas,
+		Constraints:        constraints,
+		ContainerResources: containerResources,
+		PodMetrics:         podMetrics,
+		TargetUtilization:  targetUtilization,
 	}
 
 	return state, nil

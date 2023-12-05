@@ -149,15 +149,9 @@ func convertState(s *strategy.State) (*state, error) {
 }
 
 func convertAction(a action, s *strategy.State) (*strategy.ScalingDecision, error) {
-	containerResources := make(strategy.ContainerResources)
-
-	for name, metrics := range s.ContainerMetrics {
-		containerResources[name] = metrics.Resources
-	}
-
 	noChange := &strategy.ScalingDecision{
 		Replicas:           s.Replicas,
-		ContainerResources: containerResources,
+		ContainerResources: s.ContainerResources,
 	}
 
 	switch a {

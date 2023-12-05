@@ -62,26 +62,286 @@ func TestHybrid(t *testing.T) {
 }
 
 func TestVertical(t *testing.T) {
-	type args struct {
-		state *strategy.State
-	}
 	tests := []struct {
 		name    string
-		args    args
+		state   *strategy.State
 		want    *strategy.ScalingDecision
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "replicas 0",
+			state: &strategy.State{
+				Replicas: 0,
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "no scaling",
+			state: &strategy.State{
+				Replicas: 1,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				Constraints: strategy.Constraints{
+					MinResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
+					},
+					MaxResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(250, 0),
+						Memory: inf.NewDec(250, 0),
+					},
+				},
+				PodMetrics: strategy.Metrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(50, 2),
+				},
+			},
+			want: &strategy.ScalingDecision{
+				Replicas: 1,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "scale both up",
+			state: &strategy.State{
+				Replicas: 3,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				Constraints: strategy.Constraints{
+					MinResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
+					},
+					MaxResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(500, 0),
+						Memory: inf.NewDec(500, 0),
+					},
+				},
+				PodMetrics: strategy.Metrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(100, 0),
+						Memory: inf.NewDec(100, 0),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(50, 2),
+				},
+			},
+			want: &strategy.ScalingDecision{
+				Replicas: 3,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(400, 0),
+							Memory: inf.NewDec(400, 0),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "scale both down",
+			state: &strategy.State{
+				Replicas: 3,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				Constraints: strategy.Constraints{
+					MinResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
+					},
+					MaxResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(500, 0),
+						Memory: inf.NewDec(500, 0),
+					},
+				},
+				PodMetrics: strategy.Metrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(25, 0),
+						Memory: inf.NewDec(25, 0),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(50, 2),
+				},
+			},
+			want: &strategy.ScalingDecision{
+				Replicas: 3,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(50, 0),
+							Memory: inf.NewDec(50, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "cpu up to max, memory down to min",
+			state: &strategy.State{
+				Replicas: 3,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				Constraints: strategy.Constraints{
+					MinResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
+					},
+					MaxResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(500, 0),
+						Memory: inf.NewDec(500, 0),
+					},
+				},
+				PodMetrics: strategy.Metrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(150, 0),
+						Memory: inf.NewDec(125, 1),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(50, 2),
+				},
+			},
+			want: &strategy.ScalingDecision{
+				Replicas: 3,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(300, 0),
+							Memory: inf.NewDec(50, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(500, 0),
+							Memory: inf.NewDec(100, 0),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Vertical(tt.args.state)
+			got, err := Vertical(tt.state)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Vertical() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Vertical() = %v, want %v", got, tt.want)
+			if diff := cmp.Diff(tt.want, got, cmp.Comparer(decComparer)); diff != "" {
+				t.Errorf("Vertical() %v", diff)
 			}
 		})
 	}
@@ -160,8 +420,8 @@ func TestHorizontal(t *testing.T) {
 				},
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(300, 0),
-						Memory: inf.NewDec(300, 0),
+						CPU:    inf.NewDec(100, 0),
+						Memory: inf.NewDec(100, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -176,8 +436,7 @@ func TestHorizontal(t *testing.T) {
 				},
 			},
 			want: &strategy.ScalingDecision{
-				Replicas:           3,
-				ContainerResources: strategy.ContainerResources{},
+				Replicas: 3,
 			},
 			wantErr: false,
 		},
@@ -185,21 +444,15 @@ func TestHorizontal(t *testing.T) {
 			name: "scale up, no change to container resources",
 			state: &strategy.State{
 				Replicas: 3,
-				ContainerMetrics: strategy.ContainerMetrics{
+				ContainerResources: strategy.ContainerResources{
 					"container": {
-						ResourceUsage: strategy.ResourcesList{
-							CPU:    inf.NewDec(300, 0),
-							Memory: inf.NewDec(300, 0),
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(100, 0),
+							Memory: inf.NewDec(100, 0),
 						},
-						Resources: strategy.Resources{
-							Requests: strategy.ResourcesList{
-								CPU:    inf.NewDec(100, 0),
-								Memory: inf.NewDec(100, 0),
-							},
-							Limits: strategy.ResourcesList{
-								CPU:    inf.NewDec(200, 0),
-								Memory: inf.NewDec(200, 0),
-							},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
 						},
 					},
 				},
@@ -209,8 +462,8 @@ func TestHorizontal(t *testing.T) {
 				},
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(300, 0),
-						Memory: inf.NewDec(300, 0),
+						CPU:    inf.NewDec(100, 0),
+						Memory: inf.NewDec(100, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -251,8 +504,8 @@ func TestHorizontal(t *testing.T) {
 				},
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(150, 0),
-						Memory: inf.NewDec(150, 0),
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -267,8 +520,7 @@ func TestHorizontal(t *testing.T) {
 				},
 			},
 			want: &strategy.ScalingDecision{
-				Replicas:           1,
-				ContainerResources: strategy.ContainerResources{},
+				Replicas: 1,
 			},
 			wantErr: false,
 		},
@@ -282,8 +534,8 @@ func TestHorizontal(t *testing.T) {
 				},
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(900, 0),
-						Memory: inf.NewDec(900, 0),
+						CPU:    inf.NewDec(300, 0),
+						Memory: inf.NewDec(300, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -298,8 +550,7 @@ func TestHorizontal(t *testing.T) {
 				},
 			},
 			want: &strategy.ScalingDecision{
-				Replicas:           5,
-				ContainerResources: strategy.ContainerResources{},
+				Replicas: 5,
 			},
 			wantErr: false,
 		},
@@ -313,8 +564,8 @@ func TestHorizontal(t *testing.T) {
 				},
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(150, 0),
-						Memory: inf.NewDec(150, 0),
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -329,8 +580,7 @@ func TestHorizontal(t *testing.T) {
 				},
 			},
 			want: &strategy.ScalingDecision{
-				Replicas:           2,
-				ContainerResources: strategy.ContainerResources{},
+				Replicas: 2,
 			},
 			wantErr: false,
 		},
@@ -392,8 +642,8 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 				Replicas: 10,
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(25, -1),
-						Memory: inf.NewDec(25, -1),
+						CPU:    inf.NewDec(25, 0),
+						Memory: inf.NewDec(25, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -440,8 +690,8 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 				Replicas: 5,
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(125, 0),
-						Memory: inf.NewDec(50, 0),
+						CPU:    inf.NewDec(25, 0),
+						Memory: inf.NewDec(10, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -464,8 +714,8 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 				Replicas: 2,
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(50, 0),
-						Memory: inf.NewDec(150, 0),
+						CPU:    inf.NewDec(25, 0),
+						Memory: inf.NewDec(75, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -488,8 +738,8 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 				Replicas: 6,
 				PodMetrics: strategy.Metrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(150, 0),
-						Memory: inf.NewDec(200, 0),
+						CPU:    inf.NewDec(25, 0),
+						Memory: inf.NewDec(33, 0),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
