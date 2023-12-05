@@ -58,6 +58,8 @@ type scalingAgent struct {
 	previousAction  *action
 	possibleActions actions
 	previousState   *state
+	// these ratios are needed in case one of requests or limits at some point hits a limit and thereby changes the initial ratio
+	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec
 }
 
 func NewScalingAgent() *scalingAgent {
@@ -72,6 +74,13 @@ func NewScalingAgent() *scalingAgent {
 }
 
 func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDecision, error) {
+	if a.cpuLimitsToRequestsRatio == nil || a.memoryLimitsToRequestsRatio == nil {
+		err := a.initializeLimitsToRequestRatios(state)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	s, err := convertState(state)
 	if err != nil {
 		return nil, err
@@ -98,7 +107,7 @@ func (a *scalingAgent) MakeDecision(state *strategy.State) (*strategy.ScalingDec
 		return nil, fmt.Errorf("cannot decide which action to choose, %w", err)
 	}
 
-	decision, err := convertAction(*action, state)
+	decision, err := a.convertAction(*action, state)
 	if err != nil {
 		return nil, err
 	}
@@ -148,23 +157,23 @@ func convertState(s *strategy.State) (*state, error) {
 	}, nil
 }
 
-func convertAction(a action, s *strategy.State) (*strategy.ScalingDecision, error) {
+func (a *scalingAgent) convertAction(chosenAction action, s *strategy.State) (*strategy.ScalingDecision, error) {
 	noChange := &strategy.ScalingDecision{
 		Replicas:           s.Replicas,
 		ContainerResources: s.ContainerResources,
 	}
 
-	switch a {
+	switch chosenAction {
 	case actionNone:
 		return noChange, nil
 	case actionHorizontal:
 		return scaling.Horizontal(s)
 	case actionVertical:
-		return scaling.Vertical(s)
+		return scaling.Vertical(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
 	case actionHybrid:
-		return scaling.Hybrid(s)
+		return scaling.Hybrid(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
 	case actionHybridInverse:
-		return scaling.HybridInverse(s)
+		return scaling.HybridInverse(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
 	default:
 		return noChange, nil
 	}
@@ -197,4 +206,21 @@ func quantizePercentage(value, quantum *inf.Dec) int64 {
 	quantity := new(inf.Dec).QuoRound(value, quantum, 0, inf.RoundDown)
 	quantized := new(inf.Dec).Mul(quantity, quantum)
 	return scaling.DecToInt64(quantized)
+}
+
+func (a *scalingAgent) initializeLimitsToRequestRatios(s *strategy.State) error {
+	zero := inf.NewDec(0, 0)
+
+	if s.PodMetrics.Requests.CPU.Cmp(zero) == 0 {
+		return fmt.Errorf("cpu requests cannot be zero")
+	}
+
+	if s.PodMetrics.Requests.Memory.Cmp(zero) == 0 {
+		return fmt.Errorf("memory requests cannot be zero")
+	}
+
+	a.cpuLimitsToRequestsRatio = new(inf.Dec).QuoRound(s.PodMetrics.Limits.CPU, s.PodMetrics.Requests.CPU, 8, inf.RoundHalfUp)
+	a.memoryLimitsToRequestsRatio = new(inf.Dec).QuoRound(s.PodMetrics.Limits.Memory, s.PodMetrics.Requests.Memory, 8, inf.RoundHalfUp)
+
+	return nil
 }

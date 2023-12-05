@@ -8,7 +8,11 @@ import (
 )
 
 // Recommends new resource requests and limits keeping ratios between both and each container's share of the pod's resources
-func Vertical(s *strategy.State) (*strategy.ScalingDecision, error) {
+func Vertical(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec) (*strategy.ScalingDecision, error) {
+	if cpuLimitsToRequestsRatio == nil || memoryLimitsToRequestsRatio == nil {
+		return nil, fmt.Errorf("no limits to requests ratios provided")
+	}
+
 	containerResources := make(strategy.ContainerResources)
 	currentReplicas := inf.NewDec(int64(s.Replicas), 0)
 	zero := inf.NewDec(0, 0)
@@ -33,13 +37,7 @@ func Vertical(s *strategy.State) (*strategy.ScalingDecision, error) {
 	maxCpu := s.Constraints.MaxResources.CPU
 
 	desiredPodCpuRequests = limitScalingValue(desiredPodCpuRequests, minCpu, maxCpu)
-
-	if podCpuRequests.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("cpu requests cannot be zero")
-	}
-
-	desiredPodCpuLimits := new(inf.Dec).Mul(desiredPodCpuRequests, new(inf.Dec).QuoRound(podCpuLimits, podCpuRequests, 8, inf.RoundHalfUp))
-
+	desiredPodCpuLimits := new(inf.Dec).Mul(desiredPodCpuRequests, cpuLimitsToRequestsRatio)
 	desiredPodCpuLimits = limitScalingValue(desiredPodCpuLimits, minCpu, maxCpu)
 
 	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(s.PodMetrics.ResourceUsage.Memory, podMemoryRequests, s.TargetUtilization.Memory)
@@ -52,13 +50,7 @@ func Vertical(s *strategy.State) (*strategy.ScalingDecision, error) {
 	maxMemory := s.Constraints.MaxResources.Memory
 
 	desiredPodMemoryRequests = limitScalingValue(desiredPodMemoryRequests, minMemory, maxMemory)
-
-	if podMemoryRequests.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("memory requests cannot be zero")
-	}
-
-	desiredPodMemoryLimits := new(inf.Dec).Mul(desiredPodMemoryRequests, new(inf.Dec).QuoRound(podMemoryLimits, podMemoryRequests, 8, inf.RoundHalfUp))
-
+	desiredPodMemoryLimits := new(inf.Dec).Mul(desiredPodMemoryRequests, memoryLimitsToRequestsRatio)
 	desiredPodMemoryLimits = limitScalingValue(desiredPodMemoryLimits, minMemory, maxMemory)
 
 	cpuRounder := inf.RoundHalfUp
