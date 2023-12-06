@@ -215,3 +215,45 @@ func TestQLearning_GetGreedyActions(t *testing.T) {
 		})
 	}
 }
+
+func TestQLearning_evaluateCost(t *testing.T) {
+	l := &QLearning{
+		cpuCost:            inf.NewDec(2, 0),
+		memoryCost:         inf.NewDec(1, 0),
+		performancePenalty: inf.NewDec(3, 0),
+	}
+	tests := []struct {
+		name  string
+		state *state
+		want  *inf.Dec
+	}{
+		{
+			name: "threshold exceeded",
+			state: &state{
+				Replicas:                 3,
+				LatencyThresholdExceeded: true,
+				CpuRequests:              inf.NewDec(100, 1),
+				MemoryRequests:           inf.NewDec(100, -1),
+			},
+			want: inf.NewDec(3063, 0),
+		},
+		{
+			name: "threshold not exceeded",
+			state: &state{
+				Replicas:                 3,
+				LatencyThresholdExceeded: false,
+				CpuRequests:              inf.NewDec(100, 1),
+				MemoryRequests:           inf.NewDec(100, -1),
+			},
+			want: inf.NewDec(3060, 0),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := l.evaluateCost(tt.state)
+			if diff := cmp.Diff(tt.want, got, cmp.Comparer(decComparer)); diff != "" {
+				t.Errorf("QLearning.evaluateCost() %v", diff)
+			}
+		})
+	}
+}

@@ -132,9 +132,7 @@ func convertState(s *strategy.State) (*state, error) {
 
 	cpuUsageQuantized := quantizePercentage(cpuUsageInPercent, percentageQuantum)
 	memoryUsageQuantized := quantizePercentage(memoryUsageInPercent, percentageQuantum)
-
-	// FIXME: get from metrics
-	latencyThresholdExceeded := false
+	latencyThresholdExceeded := s.PodMetrics.LatencyThresholdExceeded
 
 	name := fmt.Sprintf("%d_%d_%d_%v", s.Replicas, cpuUsageQuantized, memoryUsageQuantized, latencyThresholdExceeded)
 

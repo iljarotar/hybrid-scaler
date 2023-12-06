@@ -292,7 +292,7 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 
 	// TODO: also add pod overhead to average metrics
 
-	podMetrics := strategy.Metrics{
+	podMetrics := strategy.PodMetrics{
 		ResourceUsage: strategy.ResourcesList{
 			CPU:    averagePodCpuUsage,
 			Memory: averagePodMemoryUsage,
@@ -307,6 +307,8 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 				Memory: podMemoryLimits,
 			},
 		},
+		// TODO: get from prometheus metrics
+		LatencyThresholdExceeded: false,
 	}
 
 	constraints := strategy.Constraints{

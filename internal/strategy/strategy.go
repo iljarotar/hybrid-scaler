@@ -11,7 +11,7 @@ type State struct {
 	Replicas int32
 	ContainerResources
 	Constraints
-	PodMetrics        Metrics
+	PodMetrics        PodMetrics
 	TargetUtilization ResourcesList
 }
 
@@ -21,10 +21,11 @@ type ScalingDecision struct {
 	ContainerResources
 }
 
-// Metrics stores a pod's allocated and average used resources
-type Metrics struct {
+// PodMetrics stores a pod's allocated and average used resources
+type PodMetrics struct {
 	ResourceUsage ResourcesList
 	Resources
+	LatencyThresholdExceeded bool
 }
 
 // Resources stores a container's resource requests and limits

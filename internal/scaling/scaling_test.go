@@ -45,7 +45,7 @@ func TestHybridInverse(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(50, 0),
 						Memory: inf.NewDec(50, 0),
@@ -113,7 +113,7 @@ func TestHybridInverse(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(20, 0),
 						Memory: inf.NewDec(20, 0),
@@ -181,7 +181,7 @@ func TestHybridInverse(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(180, 0),
 						Memory: inf.NewDec(180, 0),
@@ -272,7 +272,7 @@ func TestHybrid(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(50, 0),
 						Memory: inf.NewDec(50, 0),
@@ -340,7 +340,7 @@ func TestHybrid(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(150, 0),
 						Memory: inf.NewDec(150, 0),
@@ -408,7 +408,7 @@ func TestHybrid(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(40, 0),
 						Memory: inf.NewDec(40, 0),
@@ -509,7 +509,7 @@ func TestVertical(t *testing.T) {
 						Memory: inf.NewDec(250, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(50, 0),
 						Memory: inf.NewDec(50, 0),
@@ -575,7 +575,7 @@ func TestVertical(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(100, 0),
 						Memory: inf.NewDec(100, 0),
@@ -641,7 +641,7 @@ func TestVertical(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(25, 0),
 						Memory: inf.NewDec(25, 0),
@@ -707,7 +707,7 @@ func TestVertical(t *testing.T) {
 						Memory: inf.NewDec(500, 0),
 					},
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(150, 0),
 						Memory: inf.NewDec(125, 1),
@@ -831,7 +831,7 @@ func TestHorizontal(t *testing.T) {
 					MinReplicas: 1,
 					MaxReplicas: 10,
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(100, 0),
 						Memory: inf.NewDec(100, 0),
@@ -873,7 +873,7 @@ func TestHorizontal(t *testing.T) {
 					MinReplicas: 1,
 					MaxReplicas: 10,
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(100, 0),
 						Memory: inf.NewDec(100, 0),
@@ -915,7 +915,7 @@ func TestHorizontal(t *testing.T) {
 					MinReplicas: 1,
 					MaxReplicas: 10,
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(50, 0),
 						Memory: inf.NewDec(50, 0),
@@ -945,7 +945,7 @@ func TestHorizontal(t *testing.T) {
 					MinReplicas: 1,
 					MaxReplicas: 5,
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(300, 0),
 						Memory: inf.NewDec(300, 0),
@@ -975,7 +975,7 @@ func TestHorizontal(t *testing.T) {
 					MinReplicas: 2,
 					MaxReplicas: 5,
 				},
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(50, 0),
 						Memory: inf.NewDec(50, 0),
@@ -1029,7 +1029,7 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 			name: "scale up",
 			state: &strategy.State{
 				Replicas: 1,
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(200, 0),
 						Memory: inf.NewDec(200, 0),
@@ -1053,7 +1053,7 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 			name: "scale down",
 			state: &strategy.State{
 				Replicas: 10,
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(25, 0),
 						Memory: inf.NewDec(25, 0),
@@ -1077,7 +1077,7 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 			name: "scale up based on cpu",
 			state: &strategy.State{
 				Replicas: 1,
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(150, 0),
 						Memory: inf.NewDec(100, 0),
@@ -1101,7 +1101,7 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 			name: "scale down based on cpu",
 			state: &strategy.State{
 				Replicas: 5,
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(25, 0),
 						Memory: inf.NewDec(10, 0),
@@ -1125,7 +1125,7 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 			name: "scale up based on memory",
 			state: &strategy.State{
 				Replicas: 2,
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(25, 0),
 						Memory: inf.NewDec(75, 0),
@@ -1149,7 +1149,7 @@ func Test_calculateDesiredReplicas(t *testing.T) {
 			name: "scale down based on memory",
 			state: &strategy.State{
 				Replicas: 6,
-				PodMetrics: strategy.Metrics{
+				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
 						CPU:    inf.NewDec(25, 0),
 						Memory: inf.NewDec(33, 0),
