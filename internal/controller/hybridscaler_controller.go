@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
+	"github.com/iljarotar/hybrid-scaler/internal/reinforcement"
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
 )
 
@@ -46,8 +47,7 @@ var (
 // HybridScalerReconciler reconciles a HybridScaler object
 type HybridScalerReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	ScalingStrategy strategy.ScalingStrategy
+	Scheme *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=scaling.autoscaling.custom,resources=hybridscalers,verbs=get;list;watch;create;update;patch;delete
@@ -128,12 +128,14 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return result, err
 	}
 
-	decision, learningState, err := r.ScalingStrategy.MakeDecision(state, scaler.LearningState)
+	scalingStrategy := getScalingStrategy(scaler.Spec.LearningType, scaler.Spec.QLearningParams)
+
+	decision, learningState, err := scalingStrategy.MakeDecision(state, scaler.Status.LearningState)
 	if err != nil {
 		return result, err
 	}
 
-	scaler.LearningState = learningState
+	scaler.Status.LearningState = learningState
 
 	// FIXME: if there are 0 replicas, an error is thrown.
 	if err := r.Status().Update(ctx, &scaler); err != nil {
@@ -365,4 +367,19 @@ func interpretResourceScaling(decision *strategy.ScalingDecision) map[string]sca
 	}
 
 	return containerResources
+}
+
+func getScalingStrategy(learningType scalingv1.LearningType, qParams scalingv1.QLearningParams) strategy.ScalingStrategy {
+	switch learningType {
+	case scalingv1.LearningTypeQLearning:
+		cpuCost := qParams.CpuCost.AsDec()
+		memoryCost := qParams.MemoryCost.AsDec()
+		performancePenalty := qParams.PerformancePenalty.AsDec()
+		alpha := qParams.LearningRate.AsDec()
+		gamma := qParams.DiscountFactor.AsDec()
+
+		return reinforcement.NewQAgent(cpuCost, memoryCost, performancePenalty, alpha, gamma)
+	default:
+		return &strategy.NoOp{}
+	}
 }

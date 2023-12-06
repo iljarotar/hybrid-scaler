@@ -35,7 +35,6 @@ import (
 
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
 	"github.com/iljarotar/hybrid-scaler/internal/controller"
-	"github.com/iljarotar/hybrid-scaler/internal/reinforcement"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -93,9 +92,8 @@ func main() {
 	}
 
 	if err = (&controller.HybridScalerReconciler{
-		Client:          mgr.GetClient(),
-		Scheme:          mgr.GetScheme(),
-		ScalingStrategy: reinforcement.NewQAgent(),
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HybridScaler")
 		os.Exit(1)

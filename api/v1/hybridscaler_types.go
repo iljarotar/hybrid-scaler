@@ -19,6 +19,7 @@ package v1
 import (
 	v2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
@@ -33,8 +34,18 @@ type HybridScalerSpec struct {
 	MaxReplicas    *int32                         `json:"maxReplicas"`
 
 	// ResourcePolicy must be applied on a pod level
-	ResourcePolicy ResourcePolicy `json:"resourcePolicy"`
+	ResourcePolicy   ResourcePolicy     `json:"resourcePolicy"`
+	LatencyThreshold *resource.Quantity `json:"latencyThreshold"`
+
+	LearningType    LearningType    `json:"learningType"`
+	QLearningParams QLearningParams `json:"qLearningParams"`
 }
+
+type LearningType string
+
+var (
+	LearningTypeQLearning LearningType = "qLearning"
+)
 
 type ResourcePolicy struct {
 	MinAllowed        corev1.ResourceList           `json:"minAllowed"`
@@ -47,11 +58,20 @@ type ContainerResources struct {
 	Limits   corev1.ResourceList `json:"limits"`
 }
 
+type QLearningParams struct {
+	LearningRate       *resource.Quantity `json:"learningRate"`
+	DiscountFactor     *resource.Quantity `json:"discountFactor"`
+	CpuCost            *resource.Quantity `json:"cpuCost"`
+	MemoryCost         *resource.Quantity `json:"memoryCost"`
+	PerformancePenalty *resource.Quantity `json:"performancePenalty"`
+}
+
 // HybridScalerStatus defines the observed state of HybridScaler
 type HybridScalerStatus struct {
 	Replicas           int32                         `json:"replicas"`
 	ContainerResources map[string]ContainerResources `json:"containerResources"`
 	ContainerMetrics   []v1beta1.ContainerMetrics    `json:"containerMetrics"`
+	LearningState      []byte                        `json:"learningState,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -62,9 +82,8 @@ type HybridScaler struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec          HybridScalerSpec   `json:"spec,omitempty"`
-	Status        HybridScalerStatus `json:"status,omitempty"`
-	LearningState []byte             `json:"learningState,omitempty"`
+	Spec   HybridScalerSpec   `json:"spec,omitempty"`
+	Status HybridScalerStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

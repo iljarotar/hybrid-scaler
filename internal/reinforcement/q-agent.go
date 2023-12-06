@@ -25,13 +25,6 @@ type actions []action
 var (
 	// percentageQuantum is used to discretize the resource usage very roughly
 	percentageQuantum = inf.NewDec(25, 0)
-
-	cpuCost            = inf.NewDec(0, 0)
-	memoryCost         = inf.NewDec(0, 0)
-	performancePenalty = inf.NewDec(0, 0)
-
-	alpha = inf.NewDec(0, 0)
-	gamma = inf.NewDec(0, 0)
 )
 
 // stateName represents a state as a string of the form
@@ -57,7 +50,7 @@ type qAgent struct {
 	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec
 }
 
-func NewQAgent() *qAgent {
+func NewQAgent(cpuCost, memoryCost, performancePenalty, alpha, gamma *inf.Dec) *qAgent {
 	possibleActions := []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridInverse}
 	qLearning := NewQLearning(cpuCost, memoryCost, performancePenalty, alpha, gamma, possibleActions)
 

@@ -29,20 +29,64 @@ spec:
               object represents. Servers may infer this from the endpoint the client
               submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
-          learningState:
-            format: byte
-            type: string
           metadata:
             type: object
           spec:
             description: HybridScalerSpec defines the desired state of HybridScaler
             properties:
+              latencyThreshold:
+                anyOf:
+                - type: integer
+                - type: string
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              learningType:
+                type: string
               maxReplicas:
                 format: int32
                 type: integer
               minReplicas:
                 format: int32
                 type: integer
+              qLearningParams:
+                properties:
+                  cpuCost:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  discountFactor:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  learningRate:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  memoryCost:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  performancePenalty:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                required:
+                - cpuCost
+                - discountFactor
+                - learningRate
+                - memoryCost
+                - performancePenalty
+                type: object
               resourcePolicy:
                 description: ResourcePolicy must be applied on a pod level
                 properties:
@@ -94,8 +138,11 @@ spec:
                 - name
                 type: object
             required:
+            - latencyThreshold
+            - learningType
             - maxReplicas
             - minReplicas
+            - qLearningParams
             - resourcePolicy
             - scaleTargetRef
             type: object
@@ -151,6 +198,9 @@ spec:
                   - requests
                   type: object
                 type: object
+              learningState:
+                format: byte
+                type: string
               replicas:
                 format: int32
                 type: integer
