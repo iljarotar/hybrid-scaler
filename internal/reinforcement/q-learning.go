@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"math"
 
 	"gopkg.in/inf.v0"
 )
@@ -29,8 +30,6 @@ type qTableRow map[action]*inf.Dec
 
 var initialValue = inf.NewDec(0, 0)
 
-// TODO: decode learningState as a qTable, update the table, encode it to gob and return the gob value
-// after that remove qTable from QLearning struct
 func (l *QLearning) Update(previousState, currentState *state, previousAction *action, learningState []byte) ([]byte, error) {
 	if previousAction == nil || previousState == nil {
 		return learningState, nil
@@ -65,7 +64,7 @@ func (l *QLearning) Update(previousState, currentState *state, previousAction *a
 	return encoded, nil
 }
 
-func (l *QLearning) GetGreedyActions(s *state, learningState []byte) (actions, error) {
+func (l *QLearning) GetGreedyActions(state stateName, learningState []byte) (actions, error) {
 	decoded, err := decodeToQTable(learningState)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode learning state, %w", err)
@@ -73,13 +72,13 @@ func (l *QLearning) GetGreedyActions(s *state, learningState []byte) (actions, e
 	table := *decoded
 
 	greedyActions := make(actions, 0)
-	bestValue := l.bestActionValueInState(s, table)
+	bestValue := bestActionValueInState(state, table)
 
-	if _, ok := table[s.Name]; !ok {
+	if _, ok := table[state]; !ok {
 		return l.allActions, nil
 	}
 
-	row := table[s.Name]
+	row := table[state]
 	for _, a := range l.allActions {
 		value, ok := row[a]
 		if ok && value.Cmp(bestValue) <= 0 {
@@ -107,14 +106,18 @@ func (l *QLearning) evaluateCost(s *state) *inf.Dec {
 	return new(inf.Dec).Add(cpuCosts, new(inf.Dec).Add(memoryCosts, penalty))
 }
 
-func (l *QLearning) bestActionValueInState(s *state, table qTable) *inf.Dec {
-	minCost := initialValue
+func bestActionValueInState(state stateName, table qTable) *inf.Dec {
+	minCost := inf.NewDec(math.MaxInt64, 0)
 
-	if _, ok := table[s.Name]; !ok {
-		return minCost
+	if _, ok := table[state]; !ok {
+		return initialValue
 	}
 
-	row := table[s.Name]
+	row := table[state]
+	if len(row) == 0 {
+		return initialValue
+	}
+
 	for _, value := range row {
 		if value.Cmp(minCost) < 0 {
 			minCost = value
@@ -161,7 +164,7 @@ func encodeQTable(table qTable) ([]byte, error) {
 }
 
 func (l *QLearning) newQValue(currentValue, alpha, gamma *inf.Dec, s *state, table qTable) *inf.Dec {
-	bestNextValue := l.bestActionValueInState(s, table)
+	bestNextValue := bestActionValueInState(s.Name, table)
 	discountedBestNextValue := new(inf.Dec).Mul(l.gamma, bestNextValue)
 	currentNegative := new(inf.Dec).Neg(currentValue)
 	cost := l.evaluateCost(s)

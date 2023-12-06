@@ -25,6 +25,7 @@ type actions []action
 var (
 	// percentageQuantum is used to discretize the resource usage very roughly
 	percentageQuantum = inf.NewDec(25, 0)
+	allActions        = []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridInverse}
 )
 
 // stateName represents a state as a string of the form
@@ -51,7 +52,7 @@ type qAgent struct {
 }
 
 func NewQAgent(cpuCost, memoryCost, performancePenalty, alpha, gamma *inf.Dec) *qAgent {
-	possibleActions := []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridInverse}
+	possibleActions := allActions
 	qLearning := NewQLearning(cpuCost, memoryCost, performancePenalty, alpha, gamma, possibleActions)
 
 	return &qAgent{
@@ -87,7 +88,7 @@ func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*str
 	possibleActions := a.possibleActions
 
 	if greedy {
-		possibleActions, err = a.GetGreedyActions(s, learningState)
+		possibleActions, err = a.GetGreedyActions(s.Name, learningState)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot get greedy actions, %w", err)
 		}
