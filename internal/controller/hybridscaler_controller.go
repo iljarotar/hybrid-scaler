@@ -290,6 +290,12 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 	averagePodCpuUsage := new(inf.Dec).QuoRound(podCpuUsage, replicas, 8, inf.RoundHalfUp)
 	averagePodMemoryUsage := new(inf.Dec).QuoRound(podMemoryUsage, replicas, 8, inf.RoundHalfUp)
 
+	// FIX: must be a better way to get pod requests and limits
+	podCpuRequests.QuoRound(podCpuRequests, replicas, 0, inf.RoundHalfUp)
+	podCpuLimits.QuoRound(podCpuLimits, replicas, 0, inf.RoundHalfUp)
+	podMemoryRequests.QuoRound(podMemoryRequests, replicas, 0, inf.RoundHalfUp)
+	podMemoryLimits.QuoRound(podMemoryLimits, replicas, 0, inf.RoundHalfUp)
+
 	// TODO: also add pod overhead to average metrics
 
 	podMetrics := strategy.PodMetrics{

@@ -29,7 +29,7 @@ var (
 )
 
 // stateName represents a state as a string of the form
-// <replicas>_<cpu-usage>_<memory-usage>_<latency-threshold-exceeded>
+// <replicas>_<cpu-requests>_<memory-requests>_<cpu-usage>_<memory-usage>_<latency-threshold-exceeded>
 type stateName string
 
 type state struct {
@@ -37,8 +37,6 @@ type state struct {
 	Replicas                    int32
 	LatencyThresholdExceeded    bool
 	CpuRequests, MemoryRequests *inf.Dec
-	// cpu and memory usage in [percentageQuantum]% steps
-	CpuUsage, MemoryUsage int64
 }
 
 type qAgent struct {
@@ -111,30 +109,46 @@ func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*str
 }
 
 func convertState(s *strategy.State) (*state, error) {
-	cpuUsageInPercent := inf.NewDec(0, 0)
-	memoryUsageInPercent := inf.NewDec(0, 0)
 	zero := inf.NewDec(0, 0)
 
+	podCpuRequests := s.PodMetrics.Requests.CPU
 	podCpuLimits := s.PodMetrics.Limits.CPU
 	podCpuUsage := s.PodMetrics.ResourceUsage.CPU
+
+	podMemoryRequests := s.PodMetrics.Requests.Memory
 	podMemoryLimits := s.PodMetrics.Limits.Memory
 	podMemoryUsage := s.PodMetrics.ResourceUsage.Memory
+
+	maxCpu := s.Constraints.MaxResources.CPU
+	maxMemory := s.Constraints.MaxResources.Memory
 
 	if podCpuLimits.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("cpu limits cannot be zero")
 	}
-	cpuUsageInPercent.QuoRound(podCpuUsage, podCpuLimits, 8, inf.RoundHalfUp)
+	cpuUsageInPercent := new(inf.Dec).QuoRound(podCpuUsage, podCpuLimits, 8, inf.RoundHalfUp)
 
 	if podMemoryLimits.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("memory limits cannot be zero")
 	}
-	memoryUsageInPercent.QuoRound(podMemoryUsage, podMemoryLimits, 8, inf.RoundHalfUp)
+	memoryUsageInPercent := new(inf.Dec).QuoRound(podMemoryUsage, podMemoryLimits, 8, inf.RoundHalfUp)
+
+	if maxCpu.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("max cpu cannot be zero")
+	}
+	cpuRequestsInPercentOfMax := new(inf.Dec).QuoRound(podCpuRequests, maxCpu, 8, inf.RoundHalfUp)
+
+	if maxMemory.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("max memory cannot be zero")
+	}
+	memoryRequestsInPercentOfMax := new(inf.Dec).QuoRound(podMemoryRequests, maxMemory, 8, inf.RoundHalfUp)
 
 	cpuUsageQuantized := quantizePercentage(cpuUsageInPercent, percentageQuantum)
 	memoryUsageQuantized := quantizePercentage(memoryUsageInPercent, percentageQuantum)
+	cpuRequestsQuantized := quantizePercentage(cpuRequestsInPercentOfMax, percentageQuantum)
+	memoryRequestsQuantized := quantizePercentage(memoryRequestsInPercentOfMax, percentageQuantum)
 	latencyThresholdExceeded := s.PodMetrics.LatencyThresholdExceeded
 
-	name := fmt.Sprintf("%d_%d_%d_%v", s.Replicas, cpuUsageQuantized, memoryUsageQuantized, latencyThresholdExceeded)
+	name := fmt.Sprintf("%d_%d_%d_%d_%d_%v", s.Replicas, cpuRequestsQuantized, memoryRequestsQuantized, cpuUsageQuantized, memoryUsageQuantized, latencyThresholdExceeded)
 
 	return &state{
 		Name:                     stateName(name),
@@ -142,8 +156,6 @@ func convertState(s *strategy.State) (*state, error) {
 		LatencyThresholdExceeded: latencyThresholdExceeded,
 		CpuRequests:              s.PodMetrics.Requests.CPU,
 		MemoryRequests:           s.PodMetrics.Requests.Memory,
-		CpuUsage:                 cpuUsageQuantized,
-		MemoryUsage:              memoryUsageQuantized,
 	}, nil
 }
 
