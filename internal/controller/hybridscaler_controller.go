@@ -248,13 +248,13 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 
 	for _, metrics := range status.ContainerMetrics {
 		cpuUsage := metrics.Usage.Cpu().AsDec()
-		memoryUsage := metrics.Usage.Cpu().AsDec()
+		memoryUsage := metrics.Usage.Memory().AsDec()
 
-		r, ok := status.ContainerResources[metrics.Name]
-		if !ok {
-			return nil, fmt.Errorf("unable to calculate resource usage of container %s", metrics.Name)
-		}
+		podCpuUsage.Add(podCpuUsage, cpuUsage)
+		podMemoryUsage.Add(podMemoryUsage, memoryUsage)
+	}
 
+	for name, r := range status.ContainerResources {
 		cpuRequests := r.Requests.Cpu().AsDec()
 		memoryRequests := r.Requests.Memory().AsDec()
 		cpuLimits := r.Limits.Cpu().AsDec()
@@ -271,15 +271,12 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 			},
 		}
 
-		containerResources[metrics.Name] = resources
+		containerResources[name] = resources
 
 		podCpuRequests.Add(podCpuRequests, cpuRequests)
 		podCpuLimits.Add(podCpuLimits, cpuLimits)
 		podMemoryRequests.Add(podMemoryRequests, memoryRequests)
 		podMemoryLimits.Add(podMemoryLimits, memoryLimits)
-
-		podCpuUsage.Add(podCpuUsage, cpuUsage)
-		podMemoryUsage.Add(podMemoryUsage, memoryUsage)
 	}
 
 	if status.Replicas == 0 {
@@ -289,12 +286,6 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 	replicas := inf.NewDec(int64(status.Replicas), 0)
 	averagePodCpuUsage := new(inf.Dec).QuoRound(podCpuUsage, replicas, 8, inf.RoundHalfUp)
 	averagePodMemoryUsage := new(inf.Dec).QuoRound(podMemoryUsage, replicas, 8, inf.RoundHalfUp)
-
-	// FIX: must be a better way to get pod requests and limits
-	podCpuRequests.QuoRound(podCpuRequests, replicas, 0, inf.RoundHalfUp)
-	podCpuLimits.QuoRound(podCpuLimits, replicas, 0, inf.RoundHalfUp)
-	podMemoryRequests.QuoRound(podMemoryRequests, replicas, 0, inf.RoundHalfUp)
-	podMemoryLimits.QuoRound(podMemoryLimits, replicas, 0, inf.RoundHalfUp)
 
 	// TODO: also add pod overhead to average metrics
 
@@ -363,9 +354,9 @@ func interpretResourceScaling(decision *strategy.ScalingDecision) map[string]sca
 		requests := make(corev1.ResourceList)
 		limits := make(corev1.ResourceList)
 
-		requests[corev1.ResourceCPU] = *resource.NewDecimalQuantity(*resources.Requests.CPU, resource.DecimalSI)
+		requests[corev1.ResourceCPU] = *resource.NewDecimalQuantity(*resources.Requests.CPU, resource.DecimalExponent)
 		requests[corev1.ResourceMemory] = *resource.NewDecimalQuantity(*resources.Requests.Memory, resource.DecimalSI)
-		limits[corev1.ResourceCPU] = *resource.NewDecimalQuantity(*resources.Limits.CPU, resource.DecimalSI)
+		limits[corev1.ResourceCPU] = *resource.NewDecimalQuantity(*resources.Limits.CPU, resource.DecimalExponent)
 		limits[corev1.ResourceMemory] = *resource.NewDecimalQuantity(*resources.Limits.Memory, resource.DecimalSI)
 
 		containerResources[name] = scalingv1.ContainerResources{

@@ -34,7 +34,8 @@ type HybridScalerSpec struct {
 	MaxReplicas    *int32                         `json:"maxReplicas"`
 
 	// ResourcePolicy must be applied on a pod level
-	ResourcePolicy   ResourcePolicy     `json:"resourcePolicy"`
+	ResourcePolicy ResourcePolicy `json:"resourcePolicy"`
+	// LatencyThreshold is the maximum tolerated latency in nanoseconds
 	LatencyThreshold *resource.Quantity `json:"latencyThreshold"`
 
 	LearningType    LearningType    `json:"learningType"`

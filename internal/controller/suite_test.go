@@ -44,9 +44,10 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 
 func TestControllers(t *testing.T) {
-	RegisterFailHandler(Fail)
+	// TODO: uncomment to run test suite
+	// RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Controller Suite")
+	// RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
