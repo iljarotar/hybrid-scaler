@@ -111,11 +111,9 @@ func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*str
 func convertState(s *strategy.State) (*state, error) {
 	zero := inf.NewDec(0, 0)
 
-	podCpuRequests := s.PodMetrics.Requests.CPU
 	podCpuLimits := s.PodMetrics.Limits.CPU
 	podCpuUsage := s.PodMetrics.ResourceUsage.CPU
 
-	podMemoryRequests := s.PodMetrics.Requests.Memory
 	podMemoryLimits := s.PodMetrics.Limits.Memory
 	podMemoryUsage := s.PodMetrics.ResourceUsage.Memory
 
@@ -126,29 +124,49 @@ func convertState(s *strategy.State) (*state, error) {
 		return nil, fmt.Errorf("cpu limits cannot be zero")
 	}
 	cpuUsageInPercent := new(inf.Dec).QuoRound(podCpuUsage, podCpuLimits, 8, inf.RoundHalfUp)
+	cpuUsageInPercent.Mul(cpuUsageInPercent, inf.NewDec(100, 0))
 
 	if podMemoryLimits.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("memory limits cannot be zero")
 	}
 	memoryUsageInPercent := new(inf.Dec).QuoRound(podMemoryUsage, podMemoryLimits, 8, inf.RoundHalfUp)
+	memoryUsageInPercent.Mul(memoryUsageInPercent, inf.NewDec(100, 0))
 
 	if maxCpu.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("max cpu cannot be zero")
 	}
-	cpuRequestsInPercentOfMax := new(inf.Dec).QuoRound(podCpuRequests, maxCpu, 8, inf.RoundHalfUp)
+	cpuLimitsInPercentOfMax := new(inf.Dec).QuoRound(podCpuLimits, maxCpu, 8, inf.RoundHalfUp)
+	cpuLimitsInPercentOfMax.Mul(cpuLimitsInPercentOfMax, inf.NewDec(100, 0))
 
 	if maxMemory.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("max memory cannot be zero")
 	}
-	memoryRequestsInPercentOfMax := new(inf.Dec).QuoRound(podMemoryRequests, maxMemory, 8, inf.RoundHalfUp)
+	memoryLimitsInPercentOfMax := new(inf.Dec).QuoRound(podMemoryLimits, maxMemory, 8, inf.RoundHalfUp)
+	memoryLimitsInPercentOfMax.Mul(memoryLimitsInPercentOfMax, inf.NewDec(100, 0))
 
 	cpuUsageQuantized := quantizePercentage(cpuUsageInPercent, percentageQuantum)
+	if cpuUsageQuantized > 100 {
+		cpuUsageQuantized = 100
+	}
+
 	memoryUsageQuantized := quantizePercentage(memoryUsageInPercent, percentageQuantum)
-	cpuRequestsQuantized := quantizePercentage(cpuRequestsInPercentOfMax, percentageQuantum)
-	memoryRequestsQuantized := quantizePercentage(memoryRequestsInPercentOfMax, percentageQuantum)
+	if memoryUsageQuantized > 100 {
+		memoryUsageQuantized = 100
+	}
+
+	cpuLimitsQuantized := quantizePercentage(cpuLimitsInPercentOfMax, percentageQuantum)
+	if cpuLimitsQuantized > 100 {
+		cpuLimitsQuantized = 100
+	}
+
+	memoryLimitsQuantized := quantizePercentage(memoryLimitsInPercentOfMax, percentageQuantum)
+	if memoryLimitsQuantized > 100 {
+		memoryLimitsQuantized = 100
+	}
+
 	latencyThresholdExceeded := s.PodMetrics.LatencyThresholdExceeded
 
-	name := fmt.Sprintf("%d_%d_%d_%d_%d_%v", s.Replicas, cpuRequestsQuantized, memoryRequestsQuantized, cpuUsageQuantized, memoryUsageQuantized, latencyThresholdExceeded)
+	name := fmt.Sprintf("%d_%d_%d_%d_%d_%v", s.Replicas, cpuLimitsQuantized, memoryLimitsQuantized, cpuUsageQuantized, memoryUsageQuantized, latencyThresholdExceeded)
 
 	return &state{
 		Name:                     stateName(name),

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/iljarotar/hybrid-scaler/internal/strategy"
 	"gopkg.in/inf.v0"
 )
 
@@ -253,6 +254,100 @@ func TestQLearning_evaluateCost(t *testing.T) {
 			got := l.evaluateCost(tt.state)
 			if diff := cmp.Diff(tt.want, got, cmp.Comparer(decComparer)); diff != "" {
 				t.Errorf("QLearning.evaluateCost() %v", diff)
+			}
+		})
+	}
+}
+
+func Test_quantizePercentage(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   *inf.Dec
+		quantum *inf.Dec
+		want    int64
+	}{
+		{
+			name:    "quantize to 0",
+			value:   inf.NewDec(14, 0),
+			quantum: inf.NewDec(20, 0),
+			want:    0,
+		},
+		{
+			name:    "quantize to 20%",
+			value:   inf.NewDec(29, 0),
+			quantum: inf.NewDec(20, 0),
+			want:    20,
+		},
+		{
+			name:    "quantize to 100%",
+			value:   inf.NewDec(101, 0),
+			quantum: inf.NewDec(20, 0),
+			want:    100,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := quantizePercentage(tt.value, tt.quantum); got != tt.want {
+				t.Errorf("quantizePercentage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_convertState(t *testing.T) {
+	tests := []struct {
+		name    string
+		state   *strategy.State
+		want    *state
+		wantErr bool
+	}{
+		{
+			name: "correctly convert strategy state to q-learning state",
+			state: &strategy.State{
+				Replicas: 4,
+				Constraints: strategy.Constraints{
+					MaxResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(500, 0),
+						Memory: inf.NewDec(800, 0),
+					},
+				},
+				PodMetrics: strategy.PodMetrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(600, 0),
+						Memory: inf.NewDec(180, 0),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(123, 0),
+							Memory: inf.NewDec(250, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(500, 0),
+							Memory: inf.NewDec(700, 0),
+						},
+					},
+					LatencyThresholdExceeded: true,
+				},
+			},
+			want: &state{
+				Name:                     "4_100_75_100_25_true",
+				Replicas:                 4,
+				LatencyThresholdExceeded: true,
+				CpuRequests:              inf.NewDec(123, 0),
+				MemoryRequests:           inf.NewDec(250, 0),
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := convertState(tt.state)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("convertState() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if diff := cmp.Diff(tt.want, got, cmp.Comparer(decComparer)); diff != "" {
+				t.Errorf("convertState() %v", diff)
 			}
 		})
 	}
