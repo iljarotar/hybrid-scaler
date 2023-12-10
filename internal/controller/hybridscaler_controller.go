@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"gopkg.in/inf.v0"
@@ -28,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,6 +38,9 @@ import (
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
 	"github.com/iljarotar/hybrid-scaler/internal/reinforcement"
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
+
+	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
 )
 
 var (
@@ -47,7 +50,8 @@ var (
 // HybridScalerReconciler reconciles a HybridScaler object
 type HybridScalerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	PromAPI promv1.API
+	Scheme  *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=scaling.autoscaling.custom,resources=hybridscalers,verbs=get;list;watch;create;update;patch;delete
@@ -73,19 +77,23 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var scaler scalingv1.HybridScaler
 	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
 		if errors.IsNotFound(err) {
+			logger.Error(err, "no scaler found", "namespaced name", req.NamespacedName)
 			return result, client.IgnoreNotFound(err)
 		}
 
-		return result, err
+		logger.Error(err, "cannot fetch scaler", "namespaced name", req.NamespacedName)
+		return result, nil
 	}
 
 	var deployment appsv1.Deployment
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: scaler.Spec.ScaleTargetRef.Name}, &deployment); err != nil {
 		if errors.IsNotFound(err) {
+			logger.Error(err, "no deployment found for scaler", "scaler", scaler)
 			return result, nil
 		}
 
-		return result, err
+		logger.Error(err, "cannot fetch deployment for scaler", "scaler", scaler)
+		return result, nil
 	}
 
 	scaler.Status.Replicas = deployment.Status.Replicas
@@ -93,7 +101,8 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	var replicaSets appsv1.ReplicaSetList
 	if err := r.List(ctx, &replicaSets, client.InNamespace(req.Namespace), client.MatchingFields{ownerKey: deployment.Name}); err != nil {
-		return result, err
+		logger.Error(err, "cannot list replica sets for deployment", "deployment", deployment)
+		return result, nil
 	}
 
 	pods := make([]corev1.Pod, 0)
@@ -101,46 +110,92 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for _, rs := range replicaSets.Items {
 		var podList corev1.PodList
 		if err := r.List(ctx, &podList, client.InNamespace(req.Namespace), client.MatchingFields{ownerKey: rs.Name}); err != nil {
-			return result, err
+			logger.Error(err, "cannot list pods for deployment", "deployment", deployment)
+			return result, nil
 		}
 
 		pods = append(pods, podList.Items...)
 	}
 
-	// FIXME: getting pod metrics works now, but shows error: not allowed to watch; where is the watcher?
+	var averageCpuUsage float64
+	var averageMemoryUsage float64
 	for _, pod := range pods {
-		var podMetrics v1beta1.PodMetrics
-		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pod.Name}, &podMetrics, &client.GetOptions{}); err != nil {
-			if errors.IsNotFound(err) {
-				return result, client.IgnoreNotFound(err)
+		query := fmt.Sprintf(`container_cpu_usage_seconds_total{pod="%s"}`, pod.Name)
+		res, _, err := r.PromAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			logger.Error(err, "prometheus query error", "response", res)
+			return result, nil
+		}
+
+		switch r := res.(type) {
+		case model.Vector:
+			if len(r) < 1 {
+				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+				return result, nil
 			}
 
-			return result, err
+			value := r[0].Value
+			logger.Info("cpu usage prometheus", "value", value)
+			averageCpuUsage += float64(value)
+		default:
+			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+			return result, nil
 		}
 
-		for _, metrics := range podMetrics.Containers {
-			scaler.Status.ContainerMetrics = append(scaler.Status.ContainerMetrics, metrics)
+		query = fmt.Sprintf(`container_memory_working_set_bytes{pod="%s"}`, pod.Name)
+		res, _, err = r.PromAPI.Query(ctx, query, time.Now())
+		if err != nil {
+			logger.Error(err, "prometheus query error", "response", res)
+			return result, nil
+		}
+
+		switch r := res.(type) {
+		case model.Vector:
+			if len(r) < 1 {
+				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+				return result, nil
+			}
+
+			value := r[0].Value
+			logger.Info("memory usage prometheus", "value", value)
+			averageMemoryUsage += float64(value)
+		default:
+			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+			return result, nil
 		}
 	}
+
+	averageCpuUsage /= float64(len(pods))
+	averageMemoryUsage /= float64(len(pods))
+
+	podMetrics := scalingv1.PodMetrics{
+		ResourceUsage: corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewDecimalQuantity(*float64ToDec(averageCpuUsage), resource.DecimalExponent),
+			corev1.ResourceMemory: *resource.NewDecimalQuantity(*float64ToDec(averageMemoryUsage), resource.DecimalExponent),
+		},
+		AverageLatency: resource.Quantity{},
+	}
+	scaler.Status.PodMetrics = podMetrics
 
 	state, err := prepareState(scaler.Status, scaler.Spec)
 	if err != nil {
-		return result, err
+		logger.Error(err, "cannot prepare scaling strategy state", "status", scaler.Status, "spec", scaler.Spec)
+		return result, nil
 	}
+	logger.Info("prepared state for scaling strategy", "state", state)
 
 	scalingStrategy := getScalingStrategy(scaler.Spec.LearningType, scaler.Spec.QLearningParams)
 
 	decision, learningState, err := scalingStrategy.MakeDecision(state, scaler.Status.LearningState)
 	if err != nil {
-		return result, err
+		logger.Error(err, "cannot make a scaling decision", "state", state)
+		return result, nil
 	}
-
 	scaler.Status.LearningState = learningState
 
-	// FIXME: if there are 0 replicas, an error is thrown.
 	if err := r.Status().Update(ctx, &scaler); err != nil {
-		logger.Error(err, "unable to update scaler status")
-		return result, err
+		logger.Error(err, "unable to update scaler status", "status", scaler.Status)
+		return result, nil
 	}
 
 	newResources := interpretResourceScaling(decision)
@@ -151,7 +206,8 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	for _, container := range deployment.Spec.Template.Spec.Containers {
 		resources, ok := newResources[container.Name]
 		if !ok {
-			return result, fmt.Errorf("unable to find new resources for container %v", container.Name)
+			logger.Error(err, "unable to find new resources for container", "container", container)
+			return result, nil
 		}
 
 		container.Resources.Requests = resources.Requests
@@ -162,10 +218,10 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	deployment.Spec.Template.Spec.Containers = newContainers
 
-	if err := r.Update(ctx, &deployment); err != nil {
-		logger.Error(err, "unable to update deployment spec")
-		return result, err
-	}
+	// if err := r.Update(ctx, &deployment); err != nil {
+	// 	logger.Error(err, "unable to update deployment spec")
+	// 	return result, nil
+	// }
 
 	return result, nil
 }
@@ -236,23 +292,12 @@ func getContainerResources(containers []corev1.Container) map[string]scalingv1.C
 }
 
 func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScalerSpec) (*strategy.State, error) {
-	podCpuUsage := inf.NewDec(0, 0)
-	podMemoryUsage := inf.NewDec(0, 0)
-
 	podCpuRequests := inf.NewDec(0, 0)
 	podMemoryRequests := inf.NewDec(0, 0)
 	podCpuLimits := inf.NewDec(0, 0)
 	podMemoryLimits := inf.NewDec(0, 0)
 
 	containerResources := make(strategy.ContainerResources)
-
-	for _, metrics := range status.ContainerMetrics {
-		cpuUsage := metrics.Usage.Cpu().AsDec()
-		memoryUsage := metrics.Usage.Memory().AsDec()
-
-		podCpuUsage.Add(podCpuUsage, cpuUsage)
-		podMemoryUsage.Add(podMemoryUsage, memoryUsage)
-	}
 
 	for name, r := range status.ContainerResources {
 		cpuRequests := r.Requests.Cpu().AsDec()
@@ -279,20 +324,12 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 		podMemoryLimits.Add(podMemoryLimits, memoryLimits)
 	}
 
-	if status.Replicas == 0 {
-		return nil, fmt.Errorf("number of replicas should not be zero")
-	}
-
-	replicas := inf.NewDec(int64(status.Replicas), 0)
-	averagePodCpuUsage := new(inf.Dec).QuoRound(podCpuUsage, replicas, 8, inf.RoundHalfUp)
-	averagePodMemoryUsage := new(inf.Dec).QuoRound(podMemoryUsage, replicas, 8, inf.RoundHalfUp)
-
-	// TODO: also add pod overhead to average metrics
+	// TODO: also add pod overhead to resources
 
 	podMetrics := strategy.PodMetrics{
 		ResourceUsage: strategy.ResourcesList{
-			CPU:    averagePodCpuUsage,
-			Memory: averagePodMemoryUsage,
+			CPU:    status.PodMetrics.ResourceUsage.Cpu().AsDec(),
+			Memory: status.PodMetrics.ResourceUsage.Memory().AsDec(),
 		},
 		Resources: strategy.Resources{
 			Requests: strategy.ResourcesList{
@@ -381,4 +418,16 @@ func getScalingStrategy(learningType scalingv1.LearningType, qParams scalingv1.Q
 	default:
 		return &strategy.NoOp{}
 	}
+}
+
+func float64ToDec(value float64) *inf.Dec {
+	integer, frac := math.Modf(value)
+
+	scale := 10.0
+	fracUnscaled := frac * math.Pow(10, scale)
+
+	integerDec := inf.NewDec(int64(integer), 0)
+	fracDec := inf.NewDec(int64(fracUnscaled), inf.Scale(scale))
+
+	return new(inf.Dec).Add(integerDec, fracDec)
 }

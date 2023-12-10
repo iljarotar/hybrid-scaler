@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -9,7 +10,6 @@ import (
 	"gopkg.in/inf.v0"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
 func Test_getContainerResources(t *testing.T) {
@@ -84,7 +84,6 @@ func Test_getContainerResources(t *testing.T) {
 func Test_prepareState(t *testing.T) {
 	minReplicas := int32(1)
 	maxReplicas := int32(5)
-	threshold := resource.MustParse("1M")
 
 	tests := []struct {
 		name    string
@@ -97,6 +96,13 @@ func Test_prepareState(t *testing.T) {
 			name: "correctly convert spec and status to strategy state",
 			status: scalingv1.HybridScalerStatus{
 				Replicas: 3,
+				PodMetrics: scalingv1.PodMetrics{
+					ResourceUsage: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("1G"),
+					},
+					AverageLatency: resource.MustParse("1M"),
+				},
 				ContainerResources: map[string]scalingv1.ContainerResources{
 					"container1": {
 						Requests: corev1.ResourceList{
@@ -119,50 +125,6 @@ func Test_prepareState(t *testing.T) {
 						},
 					},
 				},
-				ContainerMetrics: []v1beta1.ContainerMetrics{
-					{
-						Name: "container1",
-						Usage: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("500m"),
-							corev1.ResourceMemory: resource.MustParse("2G"),
-						},
-					},
-					{
-						Name: "container2",
-						Usage: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("200m"),
-							corev1.ResourceMemory: resource.MustParse("1G"),
-						},
-					},
-					{
-						Name: "container1",
-						Usage: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("500m"),
-							corev1.ResourceMemory: resource.MustParse("2G"),
-						},
-					},
-					{
-						Name: "container2",
-						Usage: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("200m"),
-							corev1.ResourceMemory: resource.MustParse("1G"),
-						},
-					},
-					{
-						Name: "container1",
-						Usage: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("500m"),
-							corev1.ResourceMemory: resource.MustParse("2G"),
-						},
-					},
-					{
-						Name: "container2",
-						Usage: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("200m"),
-							corev1.ResourceMemory: resource.MustParse("1G"),
-						},
-					},
-				},
 			},
 			spec: scalingv1.HybridScalerSpec{
 				MinReplicas: &minReplicas,
@@ -181,7 +143,6 @@ func Test_prepareState(t *testing.T) {
 						corev1.ResourceMemory: 80,
 					},
 				},
-				LatencyThreshold: &threshold,
 			},
 			want: &strategy.State{
 				Replicas: 3,
@@ -221,8 +182,8 @@ func Test_prepareState(t *testing.T) {
 				},
 				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
-						CPU:    inf.NewDec(7, 1),
-						Memory: inf.NewDec(3, -9),
+						CPU:    inf.NewDec(100, 3),
+						Memory: inf.NewDec(1, -9),
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
@@ -319,6 +280,48 @@ func Test_interpretResourceScaling(t *testing.T) {
 			got := interpretResourceScaling(tt.decision)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("interpretResourceScaling() %v", diff)
+			}
+		})
+	}
+}
+
+func Test_float64ToDec(t *testing.T) {
+	tests := []struct {
+		name  string
+		value float64
+		want  *inf.Dec
+	}{
+		{
+			name:  "zero",
+			value: 0,
+			want:  inf.NewDec(0, 0),
+		},
+		{
+			name:  "positive fractional",
+			value: 123.123456789,
+			want:  inf.NewDec(123123456789, 9),
+		},
+		{
+			name:  "very high positive",
+			value: math.Pow(10, 15),
+			want:  inf.NewDec(int64(math.Pow(10, 15)), 0),
+		},
+		{
+			name:  "high negative",
+			value: -123456789,
+			want:  inf.NewDec(-123456789, 0),
+		},
+		{
+			name:  "small negative",
+			value: -0.00123456789,
+			want:  inf.NewDec(-12345678, 10),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := float64ToDec(tt.value)
+			if diff := cmp.Diff(tt.want, got, cmp.Comparer(decComparer)); diff != "" {
+				t.Errorf("float64ToDec() %v", diff)
 			}
 		})
 	}

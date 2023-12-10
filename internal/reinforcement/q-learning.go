@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"math"
 
 	"gopkg.in/inf.v0"
@@ -144,7 +145,7 @@ func decodeToQTable(encoded []byte) (*qTable, error) {
 	decoder := gob.NewDecoder(buffer)
 
 	err := decoder.Decode(table)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 

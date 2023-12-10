@@ -21,7 +21,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -35,8 +34,6 @@ type HybridScalerSpec struct {
 
 	// ResourcePolicy must be applied on a pod level
 	ResourcePolicy ResourcePolicy `json:"resourcePolicy"`
-	// LatencyThreshold is the maximum tolerated latency in nanoseconds
-	LatencyThreshold *resource.Quantity `json:"latencyThreshold"`
 
 	LearningType    LearningType    `json:"learningType"`
 	QLearningParams QLearningParams `json:"qLearningParams"`
@@ -60,18 +57,23 @@ type ContainerResources struct {
 }
 
 type QLearningParams struct {
-	LearningRate       *resource.Quantity `json:"learningRate"`
-	DiscountFactor     *resource.Quantity `json:"discountFactor"`
-	CpuCost            *resource.Quantity `json:"cpuCost"`
-	MemoryCost         *resource.Quantity `json:"memoryCost"`
-	PerformancePenalty *resource.Quantity `json:"performancePenalty"`
+	LearningRate       resource.Quantity `json:"learningRate"`
+	DiscountFactor     resource.Quantity `json:"discountFactor"`
+	CpuCost            resource.Quantity `json:"cpuCost"`
+	MemoryCost         resource.Quantity `json:"memoryCost"`
+	PerformancePenalty resource.Quantity `json:"performancePenalty"`
+}
+
+type PodMetrics struct {
+	ResourceUsage  corev1.ResourceList `json:"resourceUsage"`
+	AverageLatency resource.Quantity   `json:"averageLatency"`
 }
 
 // HybridScalerStatus defines the observed state of HybridScaler
 type HybridScalerStatus struct {
 	Replicas           int32                         `json:"replicas"`
 	ContainerResources map[string]ContainerResources `json:"containerResources"`
-	ContainerMetrics   []v1beta1.ContainerMetrics    `json:"containerMetrics"`
+	PodMetrics         PodMetrics                    `json:"podMetrics"`
 	LearningState      []byte                        `json:"learningState,omitempty"`
 }
 

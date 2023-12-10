@@ -34,12 +34,6 @@ spec:
           spec:
             description: HybridScalerSpec defines the desired state of HybridScaler
             properties:
-              latencyThreshold:
-                anyOf:
-                - type: integer
-                - type: string
-                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                x-kubernetes-int-or-string: true
               learningType:
                 type: string
               maxReplicas:
@@ -138,7 +132,6 @@ spec:
                 - name
                 type: object
             required:
-            - latencyThreshold
             - learningType
             - maxReplicas
             - minReplicas
@@ -149,27 +142,6 @@ spec:
           status:
             description: HybridScalerStatus defines the observed state of HybridScaler
             properties:
-              containerMetrics:
-                items:
-                  description: ContainerMetrics sets resource usage metrics of a container.
-                  properties:
-                    name:
-                      description: Container name corresponding to the one from pod.spec.containers.
-                      type: string
-                    usage:
-                      additionalProperties:
-                        anyOf:
-                        - type: integer
-                        - type: string
-                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                        x-kubernetes-int-or-string: true
-                      description: The memory usage is the memory working set.
-                      type: object
-                  required:
-                  - name
-                  - usage
-                  type: object
-                type: array
               containerResources:
                 additionalProperties:
                   properties:
@@ -201,12 +173,34 @@ spec:
               learningState:
                 format: byte
                 type: string
+              podMetrics:
+                properties:
+                  averageLatency:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  resourceUsage:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: ResourceList is a set of (resource name, quantity)
+                      pairs.
+                    type: object
+                required:
+                - averageLatency
+                - resourceUsage
+                type: object
               replicas:
                 format: int32
                 type: integer
             required:
-            - containerMetrics
             - containerResources
+            - podMetrics
             - replicas
             type: object
         type: object

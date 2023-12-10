@@ -35,12 +35,16 @@ import (
 
 	scalingv1 "github.com/iljarotar/hybrid-scaler/api/v1"
 	"github.com/iljarotar/hybrid-scaler/internal/controller"
+	promclient "github.com/prometheus/client_golang/api"
+	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+	// prometheusURL = "http://prometheus-k8s.monitoring.svc.cluster.local:9090"
+	prometheusURL = "http://localhost:9090" // only for local development
 )
 
 func init() {
@@ -91,9 +95,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	c, err := promclient.NewClient(promclient.Config{
+		Address: prometheusURL,
+	})
+
+	promAPI := promv1.NewAPI(c)
+
 	if err = (&controller.HybridScalerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		PromAPI: promAPI,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HybridScaler")
 		os.Exit(1)
