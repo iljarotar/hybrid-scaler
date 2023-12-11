@@ -1216,7 +1216,7 @@ func Test_limitScalingValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := limitScalingValue(tt.desired, tt.min, tt.max); !reflect.DeepEqual(got, tt.want) {
+			if got := limitValue(tt.desired, tt.min, tt.max); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("limitScalingValue() = %v, want %v", got, tt.want)
 			}
 		})

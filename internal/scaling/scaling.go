@@ -26,17 +26,17 @@ func currentToTargetUtilizationRatio(usage, requests, targetUtilization *inf.Dec
 	return ratio, nil
 }
 
-// limits desired value to the range [min, max]
-func limitScalingValue(desired, min, max *inf.Dec) *inf.Dec {
-	if desired.Cmp(min) < 0 {
+// limits value to the range [min, max]
+func limitValue(value, min, max *inf.Dec) *inf.Dec {
+	if value.Cmp(min) < 0 {
 		return min
 	}
 
-	if desired.Cmp(max) > 0 {
+	if value.Cmp(max) > 0 {
 		return max
 	}
 
-	return desired
+	return value
 }
 
 // truncates fractional digits and converts `value` to `int64`

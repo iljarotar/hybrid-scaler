@@ -219,39 +219,52 @@ func TestQLearning_GetGreedyActions(t *testing.T) {
 
 func TestQLearning_evaluateCost(t *testing.T) {
 	l := &QLearning{
-		cpuCost:            inf.NewDec(2, 0),
-		memoryCost:         inf.NewDec(1, 0),
-		performancePenalty: inf.NewDec(3, 0),
+		cpuCost:                  inf.NewDec(1, 0),
+		memoryCost:               inf.NewDec(1, 9),
+		underprovisioningPenalty: inf.NewDec(2, 0),
 	}
 	tests := []struct {
-		name  string
-		state *state
-		want  *inf.Dec
+		name    string
+		state   *state
+		want    *inf.Dec
+		wantErr bool
 	}{
 		{
-			name: "threshold exceeded",
+			name: "cpu threshold exceeded",
 			state: &state{
-				Replicas:                 3,
-				LatencyThresholdExceeded: true,
-				CpuRequests:              inf.NewDec(100, 1),
-				MemoryRequests:           inf.NewDec(100, -1),
+				Replicas:                3,
+				CpuRequests:             inf.NewDec(100, 3),
+				MemoryRequests:          inf.NewDec(1, -6),
+				CpuUtilization:          inf.NewDec(60, 2),
+				MemoryUtilization:       inf.NewDec(70, 2),
+				CpuTargetUtilization:    inf.NewDec(50, 2),
+				MemoryTargetUtilization: inf.NewDec(80, 2),
 			},
-			want: inf.NewDec(3063, 0),
+			want:    inf.NewDec(423, 3),
+			wantErr: false,
 		},
 		{
-			name: "threshold not exceeded",
+			name: "thresholds not exceeded",
 			state: &state{
-				Replicas:                 3,
-				LatencyThresholdExceeded: false,
-				CpuRequests:              inf.NewDec(100, 1),
-				MemoryRequests:           inf.NewDec(100, -1),
+				Replicas:                3,
+				CpuRequests:             inf.NewDec(100, 3),
+				MemoryRequests:          inf.NewDec(1, -6),
+				CpuUtilization:          inf.NewDec(60, 2),
+				MemoryUtilization:       inf.NewDec(80, 2),
+				CpuTargetUtilization:    inf.NewDec(60, 2),
+				MemoryTargetUtilization: inf.NewDec(80, 2),
 			},
-			want: inf.NewDec(3060, 0),
+			want:    inf.NewDec(303, 3),
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := l.evaluateCost(tt.state)
+			got, err := l.evaluateCost(tt.state)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("QLearning.evaluateCost() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
 			if diff := cmp.Diff(tt.want, got, cmp.Comparer(decComparer)); diff != "" {
 				t.Errorf("QLearning.evaluateCost() %v", diff)
 			}
@@ -318,7 +331,7 @@ func Test_convertState(t *testing.T) {
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(123, 0),
+							CPU:    inf.NewDec(100, 0),
 							Memory: inf.NewDec(250, 0),
 						},
 						Limits: strategy.ResourcesList{
@@ -326,15 +339,21 @@ func Test_convertState(t *testing.T) {
 							Memory: inf.NewDec(700, 0),
 						},
 					},
-					LatencyThresholdExceeded: true,
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(50, 2),
+					Memory: inf.NewDec(80, 2),
 				},
 			},
 			want: &state{
-				Name:                     "4_100_75_100_25_true",
-				Replicas:                 4,
-				LatencyThresholdExceeded: true,
-				CpuRequests:              inf.NewDec(123, 0),
-				MemoryRequests:           inf.NewDec(250, 0),
+				Name:                    "4_100_75_100_75",
+				Replicas:                4,
+				CpuRequests:             inf.NewDec(100, 0),
+				MemoryRequests:          inf.NewDec(250, 0),
+				CpuUtilization:          inf.NewDec(6, 0),
+				MemoryUtilization:       inf.NewDec(72, 2),
+				CpuTargetUtilization:    inf.NewDec(50, 2),
+				MemoryTargetUtilization: inf.NewDec(80, 2),
 			},
 			wantErr: false,
 		},

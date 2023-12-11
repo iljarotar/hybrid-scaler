@@ -21,7 +21,7 @@ func Hybrid(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequestsR
 	desiredReplicas := new(inf.Dec).Add(currentReplicas, difference)
 	minReplicas := inf.NewDec(int64(s.MinReplicas), 0)
 	maxReplicas := inf.NewDec(int64(s.MaxReplicas), 0)
-	limitedReplicas := limitScalingValue(desiredReplicas, minReplicas, maxReplicas)
+	limitedReplicas := limitValue(desiredReplicas, minReplicas, maxReplicas)
 
 	replicas := DecToInt64(limitedReplicas)
 
@@ -58,7 +58,7 @@ func HybridInverse(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRe
 	desiredReplicas := new(inf.Dec).Add(currentReplicas, difference)
 	minReplicas := inf.NewDec(int64(s.MinReplicas), 0)
 	maxReplicas := inf.NewDec(int64(s.MaxReplicas), 0)
-	limitedReplicas := limitScalingValue(desiredReplicas, minReplicas, maxReplicas)
+	limitedReplicas := limitValue(desiredReplicas, minReplicas, maxReplicas)
 
 	replicas := DecToInt64(limitedReplicas)
 

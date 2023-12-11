@@ -29,14 +29,16 @@ var (
 )
 
 // stateName represents a state as a string of the form
-// <replicas>_<cpu-requests>_<memory-requests>_<cpu-usage>_<memory-usage>_<latency-threshold-exceeded>
+// <replicas>_<cpu-requests>_<memory-requests>_<cpu-utilization>_<memory-utilization>
 type stateName string
 
 type state struct {
-	Name                        stateName
-	Replicas                    int32
-	LatencyThresholdExceeded    bool
-	CpuRequests, MemoryRequests *inf.Dec
+	Name     stateName
+	Replicas int32
+
+	CpuRequests, MemoryRequests                   *inf.Dec
+	CpuUtilization, MemoryUtilization             *inf.Dec
+	CpuTargetUtilization, MemoryTargetUtilization *inf.Dec
 }
 
 type qAgent struct {
@@ -49,9 +51,9 @@ type qAgent struct {
 	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec
 }
 
-func NewQAgent(cpuCost, memoryCost, performancePenalty, alpha, gamma *inf.Dec) *qAgent {
+func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec) *qAgent {
 	possibleActions := allActions
-	qLearning := NewQLearning(cpuCost, memoryCost, performancePenalty, alpha, gamma, possibleActions)
+	qLearning := NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma, possibleActions)
 
 	return &qAgent{
 		QLearning:       *qLearning,
@@ -110,70 +112,81 @@ func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*str
 
 func convertState(s *strategy.State) (*state, error) {
 	zero := inf.NewDec(0, 0)
+	hundred := inf.NewDec(100, 0)
 
 	podCpuLimits := s.PodMetrics.Limits.CPU
-	podCpuUsage := s.PodMetrics.ResourceUsage.CPU
-
 	podMemoryLimits := s.PodMetrics.Limits.Memory
+	podCpuUsage := s.PodMetrics.ResourceUsage.CPU
 	podMemoryUsage := s.PodMetrics.ResourceUsage.Memory
 
+	podCpuRequests := s.PodMetrics.Requests.CPU
+	if podCpuRequests.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("cpu requests cannot be zero")
+	}
+
+	podMemoryRequests := s.PodMetrics.Requests.Memory
+	if podMemoryRequests.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("memory requests cannot be zero")
+	}
+
 	maxCpu := s.Constraints.MaxResources.CPU
-	maxMemory := s.Constraints.MaxResources.Memory
-
-	if podCpuLimits.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("cpu limits cannot be zero")
-	}
-	cpuUsageInPercent := new(inf.Dec).QuoRound(podCpuUsage, podCpuLimits, 8, inf.RoundHalfUp)
-	cpuUsageInPercent.Mul(cpuUsageInPercent, inf.NewDec(100, 0))
-
-	if podMemoryLimits.Cmp(zero) == 0 {
-		return nil, fmt.Errorf("memory limits cannot be zero")
-	}
-	memoryUsageInPercent := new(inf.Dec).QuoRound(podMemoryUsage, podMemoryLimits, 8, inf.RoundHalfUp)
-	memoryUsageInPercent.Mul(memoryUsageInPercent, inf.NewDec(100, 0))
-
 	if maxCpu.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("max cpu cannot be zero")
 	}
-	cpuLimitsInPercentOfMax := new(inf.Dec).QuoRound(podCpuLimits, maxCpu, 8, inf.RoundHalfUp)
-	cpuLimitsInPercentOfMax.Mul(cpuLimitsInPercentOfMax, inf.NewDec(100, 0))
 
+	maxMemory := s.Constraints.MaxResources.Memory
 	if maxMemory.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("max memory cannot be zero")
 	}
+
+	cpuTargetUtilization := s.TargetUtilization.CPU
+	if cpuTargetUtilization.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("cpu target utilization cannot be zero")
+	}
+
+	memoryTargetUtilization := s.TargetUtilization.Memory
+	if memoryTargetUtilization.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("memory target utilization cannot be zero")
+	}
+
+	cpuUsageInPercent := new(inf.Dec).QuoRound(podCpuUsage, podCpuRequests, 8, inf.RoundHalfUp)
+	memoryUsageInPercent := new(inf.Dec).QuoRound(podMemoryUsage, podMemoryRequests, 8, inf.RoundHalfUp)
+	cpuUtilizationRatio := new(inf.Dec).QuoRound(cpuUsageInPercent, cpuTargetUtilization, 8, inf.RoundHalfUp)
+	memoryUtilizationRatio := new(inf.Dec).QuoRound(memoryUsageInPercent, memoryTargetUtilization, 8, inf.RoundHalfUp)
+	cpuLimitsInPercentOfMax := new(inf.Dec).QuoRound(podCpuLimits, maxCpu, 8, inf.RoundHalfUp)
 	memoryLimitsInPercentOfMax := new(inf.Dec).QuoRound(podMemoryLimits, maxMemory, 8, inf.RoundHalfUp)
-	memoryLimitsInPercentOfMax.Mul(memoryLimitsInPercentOfMax, inf.NewDec(100, 0))
 
-	cpuUsageQuantized := quantizePercentage(cpuUsageInPercent, percentageQuantum)
-	if cpuUsageQuantized > 100 {
-		cpuUsageQuantized = 100
+	cpuUtilizationRatioQuantized := quantizePercentage(new(inf.Dec).Mul(cpuUtilizationRatio, hundred), percentageQuantum)
+	if cpuUtilizationRatioQuantized > 100 {
+		cpuUtilizationRatioQuantized = 100
 	}
 
-	memoryUsageQuantized := quantizePercentage(memoryUsageInPercent, percentageQuantum)
-	if memoryUsageQuantized > 100 {
-		memoryUsageQuantized = 100
+	memoryUtilizationRatioQuantized := quantizePercentage(new(inf.Dec).Mul(memoryUtilizationRatio, hundred), percentageQuantum)
+	if memoryUtilizationRatioQuantized > 100 {
+		memoryUtilizationRatioQuantized = 100
 	}
 
-	cpuLimitsQuantized := quantizePercentage(cpuLimitsInPercentOfMax, percentageQuantum)
+	cpuLimitsQuantized := quantizePercentage(new(inf.Dec).Mul(cpuLimitsInPercentOfMax, hundred), percentageQuantum)
 	if cpuLimitsQuantized > 100 {
 		cpuLimitsQuantized = 100
 	}
 
-	memoryLimitsQuantized := quantizePercentage(memoryLimitsInPercentOfMax, percentageQuantum)
+	memoryLimitsQuantized := quantizePercentage(new(inf.Dec).Mul(memoryLimitsInPercentOfMax, hundred), percentageQuantum)
 	if memoryLimitsQuantized > 100 {
 		memoryLimitsQuantized = 100
 	}
 
-	latencyThresholdExceeded := s.PodMetrics.LatencyThresholdExceeded
-
-	name := fmt.Sprintf("%d_%d_%d_%d_%d_%v", s.Replicas, cpuLimitsQuantized, memoryLimitsQuantized, cpuUsageQuantized, memoryUsageQuantized, latencyThresholdExceeded)
+	name := fmt.Sprintf("%d_%d_%d_%d_%d", s.Replicas, cpuLimitsQuantized, memoryLimitsQuantized, cpuUtilizationRatioQuantized, memoryUtilizationRatioQuantized)
 
 	return &state{
-		Name:                     stateName(name),
-		Replicas:                 s.Replicas,
-		LatencyThresholdExceeded: latencyThresholdExceeded,
-		CpuRequests:              s.PodMetrics.Requests.CPU,
-		MemoryRequests:           s.PodMetrics.Requests.Memory,
+		Name:                    stateName(name),
+		Replicas:                s.Replicas,
+		CpuRequests:             s.PodMetrics.Requests.CPU,
+		MemoryRequests:          s.PodMetrics.Requests.Memory,
+		CpuUtilization:          cpuUsageInPercent,
+		MemoryUtilization:       memoryUsageInPercent,
+		CpuTargetUtilization:    cpuTargetUtilization,
+		MemoryTargetUtilization: memoryTargetUtilization,
 	}, nil
 }
 

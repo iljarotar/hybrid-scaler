@@ -68,7 +68,7 @@ spec:
                     - type: string
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
-                  performancePenalty:
+                  underprovisioningPenalty:
                     anyOf:
                     - type: integer
                     - type: string
@@ -79,7 +79,7 @@ spec:
                 - discountFactor
                 - learningRate
                 - memoryCost
-                - performancePenalty
+                - underprovisioningPenalty
                 type: object
               resourcePolicy:
                 description: ResourcePolicy must be applied on a pod level
@@ -175,12 +175,6 @@ spec:
                 type: string
               podMetrics:
                 properties:
-                  averageLatency:
-                    anyOf:
-                    - type: integer
-                    - type: string
-                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                    x-kubernetes-int-or-string: true
                   resourceUsage:
                     additionalProperties:
                       anyOf:
@@ -192,7 +186,6 @@ spec:
                       pairs.
                     type: object
                 required:
-                - averageLatency
                 - resourceUsage
                 type: object
               replicas:

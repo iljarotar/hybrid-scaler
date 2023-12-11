@@ -101,7 +101,6 @@ func Test_prepareState(t *testing.T) {
 						corev1.ResourceCPU:    resource.MustParse("100m"),
 						corev1.ResourceMemory: resource.MustParse("1G"),
 					},
-					AverageLatency: resource.MustParse("1M"),
 				},
 				ContainerResources: map[string]scalingv1.ContainerResources{
 					"container1": {
@@ -195,7 +194,6 @@ func Test_prepareState(t *testing.T) {
 							Memory: inf.NewDec(8, -9),
 						},
 					},
-					LatencyThresholdExceeded: false,
 				},
 				TargetUtilization: strategy.ResourcesList{
 					CPU:    inf.NewDec(50, 2),

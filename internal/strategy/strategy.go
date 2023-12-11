@@ -25,7 +25,6 @@ type ScalingDecision struct {
 type PodMetrics struct {
 	ResourceUsage ResourcesList
 	Resources
-	LatencyThresholdExceeded bool
 }
 
 // Resources stores a container's resource requests and limits

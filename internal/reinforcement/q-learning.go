@@ -11,18 +11,18 @@ import (
 )
 
 type QLearning struct {
-	cpuCost, memoryCost, performancePenalty, alpha, gamma *inf.Dec
-	allActions                                            actions
+	cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec
+	allActions                                                  actions
 }
 
-func NewQLearning(cpuCost, memoryCost, performancePenalty, alpha, gamma *inf.Dec, possibleActions actions) *QLearning {
+func NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec, possibleActions actions) *QLearning {
 	return &QLearning{
-		allActions:         possibleActions,
-		cpuCost:            cpuCost,
-		memoryCost:         memoryCost,
-		performancePenalty: performancePenalty,
-		alpha:              alpha,
-		gamma:              gamma,
+		allActions:               possibleActions,
+		cpuCost:                  cpuCost,
+		memoryCost:               memoryCost,
+		underprovisioningPenalty: underprovisioningPenalty,
+		alpha:                    alpha,
+		gamma:                    gamma,
 	}
 }
 
@@ -54,7 +54,10 @@ func (l *QLearning) Update(previousState, currentState *state, previousAction *a
 		currentValue = initialValue
 	}
 
-	newValue := l.newQValue(currentValue, l.alpha, l.gamma, currentState, table)
+	newValue, err := l.newQValue(currentValue, l.alpha, l.gamma, currentState, table)
+	if err != nil {
+		return nil, fmt.Errorf("cannot calculate new value for q table, %w", err)
+	}
 	table[previousState.Name][*previousAction] = newValue
 
 	encoded, err := encodeQTable(table)
@@ -90,21 +93,46 @@ func (l *QLearning) GetGreedyActions(state stateName, learningState []byte) (act
 	return greedyActions, nil
 }
 
-func (l *QLearning) evaluateCost(s *state) *inf.Dec {
-	replicas := inf.NewDec(int64(s.Replicas), 0)
+func (l *QLearning) evaluateCost(s *state) (*inf.Dec, error) {
+	zero := inf.NewDec(0, 0)
 
-	te := 0
-	if s.LatencyThresholdExceeded {
-		te = 1
+	if s.CpuTargetUtilization.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("cpu target utilization cannot be zero")
 	}
 
-	thresholdExceeded := inf.NewDec(int64(te), 0)
+	if s.MemoryTargetUtilization.Cmp(zero) == 0 {
+		return nil, fmt.Errorf("memory target utilization cannot be zero")
+	}
 
-	cpuCosts := new(inf.Dec).Mul(l.cpuCost, new(inf.Dec).Mul(s.CpuRequests, replicas))
-	memoryCosts := new(inf.Dec).Mul(l.memoryCost, new(inf.Dec).Mul(s.MemoryRequests, replicas))
-	penalty := new(inf.Dec).Mul(l.performancePenalty, thresholdExceeded)
+	replicas := inf.NewDec(int64(s.Replicas), 0)
 
-	return new(inf.Dec).Add(cpuCosts, new(inf.Dec).Add(memoryCosts, penalty))
+	cpuCosts := new(inf.Dec).Mul(l.cpuCost, s.CpuRequests)
+	memoryCosts := new(inf.Dec).Mul(l.memoryCost, s.MemoryRequests)
+
+	cpuPenalty := inf.NewDec(0, 0)
+	if s.CpuUtilization.Cmp(s.CpuTargetUtilization) > 0 {
+		cpuUsage := new(inf.Dec).Mul(s.CpuRequests, s.CpuUtilization)
+		targetCpuRequests := new(inf.Dec).QuoRound(cpuUsage, s.CpuTargetUtilization, 8, inf.RoundHalfUp)
+		difference := new(inf.Dec).Add(targetCpuRequests, new(inf.Dec).Neg(s.CpuRequests))
+		penalty := new(inf.Dec).Mul(l.cpuCost, l.underprovisioningPenalty)
+		cpuPenalty = new(inf.Dec).Mul(difference, penalty)
+	}
+
+	memoryPenalty := inf.NewDec(0, 0)
+	if s.MemoryUtilization.Cmp(s.MemoryTargetUtilization) > 0 {
+		memoryUsage := new(inf.Dec).Mul(s.MemoryRequests, s.MemoryUtilization)
+		targetMemoryRequests := new(inf.Dec).QuoRound(memoryUsage, s.MemoryTargetUtilization, 8, inf.RoundHalfUp)
+		difference := new(inf.Dec).Add(targetMemoryRequests, new(inf.Dec).Neg(s.MemoryRequests))
+		penalty := new(inf.Dec).Mul(l.memoryCost, l.underprovisioningPenalty)
+		memoryPenalty = new(inf.Dec).Mul(difference, penalty)
+	}
+
+	podCpuCost := new(inf.Dec).Add(cpuCosts, cpuPenalty)
+	podMemoryCost := new(inf.Dec).Add(memoryCosts, memoryPenalty)
+	totalPodCost := new(inf.Dec).Add(podCpuCost, podMemoryCost)
+	totalCost := new(inf.Dec).Mul(totalPodCost, replicas)
+
+	return totalCost, nil
 }
 
 func bestActionValueInState(state stateName, table qTable) *inf.Dec {
@@ -164,14 +192,19 @@ func encodeQTable(table qTable) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (l *QLearning) newQValue(currentValue, alpha, gamma *inf.Dec, s *state, table qTable) *inf.Dec {
+func (l *QLearning) newQValue(currentValue, alpha, gamma *inf.Dec, s *state, table qTable) (*inf.Dec, error) {
 	bestNextValue := bestActionValueInState(s.Name, table)
 	discountedBestNextValue := new(inf.Dec).Mul(l.gamma, bestNextValue)
 	currentNegative := new(inf.Dec).Neg(currentValue)
-	cost := l.evaluateCost(s)
+
+	cost, err := l.evaluateCost(s)
+	if err != nil {
+		return nil, err
+	}
+
 	newCostEstimate := new(inf.Dec).Add(cost, new(inf.Dec).Add(discountedBestNextValue, currentNegative))
 	difference := new(inf.Dec).Mul(l.alpha, newCostEstimate)
 
 	newValue := new(inf.Dec).Add(currentValue, difference)
-	return newValue
+	return newValue, nil
 }

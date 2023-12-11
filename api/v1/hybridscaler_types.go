@@ -57,16 +57,15 @@ type ContainerResources struct {
 }
 
 type QLearningParams struct {
-	LearningRate       resource.Quantity `json:"learningRate"`
-	DiscountFactor     resource.Quantity `json:"discountFactor"`
-	CpuCost            resource.Quantity `json:"cpuCost"`
-	MemoryCost         resource.Quantity `json:"memoryCost"`
-	PerformancePenalty resource.Quantity `json:"performancePenalty"`
+	LearningRate             resource.Quantity `json:"learningRate"`
+	DiscountFactor           resource.Quantity `json:"discountFactor"`
+	CpuCost                  resource.Quantity `json:"cpuCost"`
+	MemoryCost               resource.Quantity `json:"memoryCost"`
+	UnderprovisioningPenalty resource.Quantity `json:"underprovisioningPenalty"`
 }
 
 type PodMetrics struct {
-	ResourceUsage  corev1.ResourceList `json:"resourceUsage"`
-	AverageLatency resource.Quantity   `json:"averageLatency"`
+	ResourceUsage corev1.ResourceList `json:"resourceUsage"`
 }
 
 // HybridScalerStatus defines the observed state of HybridScaler

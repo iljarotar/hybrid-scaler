@@ -120,47 +120,47 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var averageCpuUsage float64
 	var averageMemoryUsage float64
 	for _, pod := range pods {
-		query := fmt.Sprintf(`container_cpu_usage_seconds_total{pod="%s"}`, pod.Name)
+		query := fmt.Sprintf(`container_cpu_usage_seconds_total{pod="%s", container!=""}`, pod.Name)
 		res, _, err := r.PromAPI.Query(ctx, query, time.Now())
 		if err != nil {
 			logger.Error(err, "prometheus query error", "response", res)
 			return result, nil
 		}
 
-		switch r := res.(type) {
+		switch resTyped := res.(type) {
 		case model.Vector:
-			if len(r) < 1 {
+			if len(resTyped) < 1 {
 				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
 				return result, nil
 			}
 
-			value := r[0].Value
-			logger.Info("cpu usage prometheus", "value", value)
-			averageCpuUsage += float64(value)
+			for _, sample := range resTyped {
+				averageCpuUsage += float64(sample.Value)
+			}
 		default:
-			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result type", resTyped.Type().String())
 			return result, nil
 		}
 
-		query = fmt.Sprintf(`container_memory_working_set_bytes{pod="%s"}`, pod.Name)
+		query = fmt.Sprintf(`container_memory_working_set_bytes{pod="%s", container!=""}`, pod.Name)
 		res, _, err = r.PromAPI.Query(ctx, query, time.Now())
 		if err != nil {
 			logger.Error(err, "prometheus query error", "response", res)
 			return result, nil
 		}
 
-		switch r := res.(type) {
+		switch resTyped := res.(type) {
 		case model.Vector:
-			if len(r) < 1 {
+			if len(resTyped) < 1 {
 				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
 				return result, nil
 			}
 
-			value := r[0].Value
-			logger.Info("memory usage prometheus", "value", value)
-			averageMemoryUsage += float64(value)
+			for _, sample := range resTyped {
+				averageMemoryUsage += float64(sample.Value)
+			}
 		default:
-			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result type", resTyped.Type().String())
 			return result, nil
 		}
 	}
@@ -173,7 +173,6 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			corev1.ResourceCPU:    *resource.NewDecimalQuantity(*float64ToDec(averageCpuUsage), resource.DecimalExponent),
 			corev1.ResourceMemory: *resource.NewDecimalQuantity(*float64ToDec(averageMemoryUsage), resource.DecimalExponent),
 		},
-		AverageLatency: resource.Quantity{},
 	}
 	scaler.Status.PodMetrics = podMetrics
 
@@ -341,8 +340,6 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 				Memory: podMemoryLimits,
 			},
 		},
-		// TODO: get from prometheus metrics
-		LatencyThresholdExceeded: false,
 	}
 
 	constraints := strategy.Constraints{
@@ -410,11 +407,11 @@ func getScalingStrategy(learningType scalingv1.LearningType, qParams scalingv1.Q
 	case scalingv1.LearningTypeQLearning:
 		cpuCost := qParams.CpuCost.AsDec()
 		memoryCost := qParams.MemoryCost.AsDec()
-		performancePenalty := qParams.PerformancePenalty.AsDec()
+		underprovisioningPenalty := qParams.UnderprovisioningPenalty.AsDec()
 		alpha := qParams.LearningRate.AsDec()
 		gamma := qParams.DiscountFactor.AsDec()
 
-		return reinforcement.NewQAgent(cpuCost, memoryCost, performancePenalty, alpha, gamma)
+		return reinforcement.NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma)
 	default:
 		return &strategy.NoOp{}
 	}
