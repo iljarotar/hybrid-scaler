@@ -48,8 +48,6 @@ type qAgent struct {
 	logger          logr.Logger
 	epsilon         float64
 	possibleActions actions
-	// these ratios are needed in case one of requests or limits at some point hits a limit and thereby changes the initial ratio
-	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec
 }
 
 func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec) *qAgent {
@@ -66,11 +64,6 @@ func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.
 }
 
 func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*strategy.ScalingDecision, []byte, error) {
-	err := a.initializeLimitsToRequestRatios(state)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	s, err := convertState(state)
 	if err != nil {
 		return nil, nil, err
@@ -196,7 +189,11 @@ func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strateg
 		ContainerResources: s.ContainerResources,
 	}
 
-	var err error
+	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio, err := getLimitsToRequestsRatio(s)
+	if err != nil {
+		return nil, err
+	}
+
 	switch chosenAction {
 	case actionNone:
 		err = nil
@@ -205,13 +202,13 @@ func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strateg
 		decision, err = scaling.Horizontal(s)
 
 	case actionVertical:
-		decision, err = scaling.Vertical(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+		decision, err = scaling.Vertical(s, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio)
 
 	case actionHybrid:
-		decision, err = scaling.Hybrid(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+		decision, err = scaling.Hybrid(s, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio)
 
 	case actionHybridInverse:
-		decision, err = scaling.HybridInverse(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+		decision, err = scaling.HybridInverse(s, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio)
 
 	default:
 		return decision, nil
@@ -250,19 +247,19 @@ func quantizePercentage(value, quantum *inf.Dec) int64 {
 	return scaling.DecToInt64(quantized)
 }
 
-func (a *qAgent) initializeLimitsToRequestRatios(s *strategy.State) error {
+func getLimitsToRequestsRatio(s *strategy.State) (cpu, memory *inf.Dec, err error) {
 	zero := inf.NewDec(0, 0)
 
 	if s.PodMetrics.Requests.CPU.Cmp(zero) == 0 {
-		return fmt.Errorf("cpu requests cannot be zero")
+		return nil, nil, fmt.Errorf("cpu requests cannot be zero")
 	}
 
 	if s.PodMetrics.Requests.Memory.Cmp(zero) == 0 {
-		return fmt.Errorf("memory requests cannot be zero")
+		return nil, nil, fmt.Errorf("memory requests cannot be zero")
 	}
 
-	a.cpuLimitsToRequestsRatio = new(inf.Dec).QuoRound(s.PodMetrics.Limits.CPU, s.PodMetrics.Requests.CPU, 8, inf.RoundHalfUp)
-	a.memoryLimitsToRequestsRatio = new(inf.Dec).QuoRound(s.PodMetrics.Limits.Memory, s.PodMetrics.Requests.Memory, 8, inf.RoundHalfUp)
+	cpuLimitsToRequestsRatio := new(inf.Dec).QuoRound(s.PodMetrics.Limits.CPU, s.PodMetrics.Requests.CPU, 8, inf.RoundHalfUp)
+	memoryLimitsToRequestsRatio := new(inf.Dec).QuoRound(s.PodMetrics.Limits.Memory, s.PodMetrics.Requests.Memory, 8, inf.RoundHalfUp)
 
-	return nil
+	return cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio, nil
 }
