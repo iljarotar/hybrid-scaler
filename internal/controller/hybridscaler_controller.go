@@ -323,8 +323,6 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 		podMemoryLimits.Add(podMemoryLimits, memoryLimits)
 	}
 
-	// TODO: also add pod overhead to resources
-
 	podMetrics := strategy.PodMetrics{
 		ResourceUsage: strategy.ResourcesList{
 			CPU:    status.PodMetrics.ResourceUsage.Cpu().AsDec(),

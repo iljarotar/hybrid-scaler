@@ -24,12 +24,12 @@ func TestHybridInverse(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -52,12 +52,12 @@ func TestHybridInverse(t *testing.T) {
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -73,12 +73,12 @@ func TestHybridInverse(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -209,8 +209,8 @@ func TestHybridInverse(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(360, 0),
-							Memory: inf.NewDec(360, 0),
+							CPU:    inf.NewDec(396, 0),
+							Memory: inf.NewDec(396, 0),
 						},
 						Limits: strategy.ResourcesList{
 							CPU:    inf.NewDec(500, 0),
@@ -251,12 +251,12 @@ func TestHybrid(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -279,12 +279,12 @@ func TestHybrid(t *testing.T) {
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -300,12 +300,12 @@ func TestHybrid(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -368,12 +368,12 @@ func TestHybrid(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(150, 0),
-							Memory: inf.NewDec(150, 0),
+							CPU:    inf.NewDec(165, 0),
+							Memory: inf.NewDec(165, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(300, 0),
-							Memory: inf.NewDec(300, 0),
+							CPU:    inf.NewDec(330, 0),
+							Memory: inf.NewDec(330, 0),
 						},
 					},
 				},
@@ -436,12 +436,12 @@ func TestHybrid(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -490,12 +490,12 @@ func TestVertical(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -516,12 +516,12 @@ func TestVertical(t *testing.T) {
 					},
 					Resources: strategy.Resources{
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -535,12 +535,12 @@ func TestVertical(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 					},
 				},
@@ -601,12 +601,12 @@ func TestVertical(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(200, 0),
-							Memory: inf.NewDec(200, 0),
+							CPU:    inf.NewDec(220, 0),
+							Memory: inf.NewDec(220, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(400, 0),
-							Memory: inf.NewDec(400, 0),
+							CPU:    inf.NewDec(440, 0),
+							Memory: inf.NewDec(440, 0),
 						},
 					},
 				},
@@ -667,12 +667,12 @@ func TestVertical(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(50, 0),
-							Memory: inf.NewDec(50, 0),
+							CPU:    inf.NewDec(55, 0),
+							Memory: inf.NewDec(55, 0),
 						},
 						Limits: strategy.ResourcesList{
-							CPU:    inf.NewDec(100, 0),
-							Memory: inf.NewDec(100, 0),
+							CPU:    inf.NewDec(110, 0),
+							Memory: inf.NewDec(110, 0),
 						},
 					},
 				},
@@ -733,7 +733,7 @@ func TestVertical(t *testing.T) {
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
-							CPU:    inf.NewDec(300, 0),
+							CPU:    inf.NewDec(330, 0),
 							Memory: inf.NewDec(50, 0),
 						},
 						Limits: strategy.ResourcesList{

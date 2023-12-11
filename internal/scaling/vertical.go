@@ -7,6 +7,8 @@ import (
 	"gopkg.in/inf.v0"
 )
 
+var overprovisioningFactor = inf.NewDec(110, 2)
+
 // Recommends new resource requests and limits keeping ratios between both and each container's share of the pod's resources
 func Vertical(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec) (*strategy.ScalingDecision, error) {
 	if cpuLimitsToRequestsRatio == nil || memoryLimitsToRequestsRatio == nil {
@@ -33,6 +35,7 @@ func Vertical(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequest
 	}
 
 	desiredPodCpuRequests := new(inf.Dec).Mul(podCpuRequests, cpuCurrentToTargetRatio)
+	desiredPodCpuRequests.Mul(desiredPodCpuRequests, overprovisioningFactor)
 	minCpu := s.Constraints.MinResources.CPU
 	maxCpu := s.Constraints.MaxResources.CPU
 
@@ -46,6 +49,7 @@ func Vertical(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequest
 	}
 
 	desiredPodMemoryRequests := new(inf.Dec).Mul(podMemoryRequests, memoryCurrentToTargetRatio)
+	desiredPodMemoryRequests.Mul(desiredPodMemoryRequests, overprovisioningFactor)
 	minMemory := s.Constraints.MinResources.Memory
 	maxMemory := s.Constraints.MaxResources.Memory
 
@@ -84,6 +88,11 @@ func Vertical(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequest
 
 		desiredMemoryRequests := new(inf.Dec).Mul(memoryRequests, new(inf.Dec).QuoRound(desiredPodMemoryRequests, podMemoryRequests, 8, memoryRounder))
 		desiredMemoryLimits := new(inf.Dec).Mul(memoryLimits, new(inf.Dec).QuoRound(desiredPodMemoryLimits, podMemoryLimits, 8, memoryRounder))
+
+		desiredCpuRequests.Round(desiredCpuRequests, 3, cpuRounder)
+		desiredCpuLimits.Round(desiredCpuLimits, 3, cpuRounder)
+		desiredMemoryRequests.Round(desiredMemoryRequests, 0, memoryRounder)
+		desiredMemoryLimits.Round(desiredMemoryLimits, 0, memoryRounder)
 
 		containerResources[name] = strategy.Resources{
 			Requests: strategy.ResourcesList{
