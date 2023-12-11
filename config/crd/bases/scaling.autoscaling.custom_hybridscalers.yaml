@@ -34,6 +34,9 @@ spec:
           spec:
             description: HybridScalerSpec defines the desired state of HybridScaler
             properties:
+              interval:
+                format: int32
+                type: integer
               learningType:
                 type: string
               maxReplicas:
@@ -82,7 +85,6 @@ spec:
                 - underprovisioningPenalty
                 type: object
               resourcePolicy:
-                description: ResourcePolicy must be applied on a pod level
                 properties:
                   maxAllowed:
                     additionalProperties:
@@ -132,6 +134,7 @@ spec:
                 - name
                 type: object
             required:
+            - interval
             - learningType
             - maxReplicas
             - minReplicas

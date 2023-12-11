@@ -28,15 +28,13 @@ import (
 
 // HybridScalerSpec defines the desired state of HybridScaler
 type HybridScalerSpec struct {
-	ScaleTargetRef v2.CrossVersionObjectReference `json:"scaleTargetRef"`
-	MinReplicas    *int32                         `json:"minReplicas"`
-	MaxReplicas    *int32                         `json:"maxReplicas"`
-
-	// ResourcePolicy must be applied on a pod level
-	ResourcePolicy ResourcePolicy `json:"resourcePolicy"`
-
-	LearningType    LearningType    `json:"learningType"`
-	QLearningParams QLearningParams `json:"qLearningParams"`
+	ScaleTargetRef  v2.CrossVersionObjectReference `json:"scaleTargetRef"`
+	MinReplicas     *int32                         `json:"minReplicas"`
+	MaxReplicas     *int32                         `json:"maxReplicas"`
+	ResourcePolicy  ResourcePolicy                 `json:"resourcePolicy"`
+	LearningType    LearningType                   `json:"learningType"`
+	QLearningParams QLearningParams                `json:"qLearningParams"`
+	Interval        *int32                         `json:"interval"`
 }
 
 type LearningType string

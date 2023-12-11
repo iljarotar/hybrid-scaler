@@ -84,6 +84,9 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Error(err, "cannot fetch scaler", "namespaced name", req.NamespacedName)
 		return result, nil
 	}
+	if scaler.Spec.Interval != nil {
+		result.RequeueAfter = time.Duration(*scaler.Spec.Interval) * time.Second
+	}
 
 	var deployment appsv1.Deployment
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: scaler.Spec.ScaleTargetRef.Name}, &deployment); err != nil {
@@ -217,10 +220,10 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	deployment.Spec.Template.Spec.Containers = newContainers
 
-	// if err := r.Update(ctx, &deployment); err != nil {
-	// 	logger.Error(err, "unable to update deployment spec")
-	// 	return result, nil
-	// }
+	if err := r.Update(ctx, &deployment); err != nil {
+		logger.Error(err, "unable to update deployment spec")
+		return result, nil
+	}
 
 	return result, nil
 }
