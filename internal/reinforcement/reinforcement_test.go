@@ -25,19 +25,19 @@ func decComparer(a, b *inf.Dec) bool {
 }
 
 func Test_encodeAndDecodeQTable(t *testing.T) {
-	type args struct {
-	}
 	tests := []struct {
-		name    string
-		table   qTable
-		want    qTable
-		wantErr bool
+		name         string
+		learninState *learningState
+		want         qTable
+		wantErr      bool
 	}{
 		{
 			name: "encoding and decoding does not alter the table",
-			table: qTable{
-				"state1": {
-					"action1": inf.NewDec(10, 0),
+			learninState: &learningState{
+				Table: qTable{
+					"state1": {
+						"action1": inf.NewDec(10, 0),
+					},
 				},
 			},
 			want: qTable{
@@ -50,19 +50,19 @@ func Test_encodeAndDecodeQTable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			encoded, err := encodeQTable(tt.table)
+			encoded, err := encodeLearningState(tt.learninState)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("encodeQTable() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			got, err := decodeToQTable(encoded)
+			got, err := decodeToLearningState(encoded)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("decodeToQTable() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			if diff := cmp.Diff(tt.want, *got, cmp.Comparer(decComparer)); diff != "" {
+			if diff := cmp.Diff(tt.want, got.Table, cmp.Comparer(decComparer)); diff != "" {
 				t.Errorf("decoded q-table not as expected %v", diff)
 			}
 		})
@@ -164,29 +164,33 @@ func TestQLearning_GetGreedyActions(t *testing.T) {
 		allActions: allActions,
 	}
 	tests := []struct {
-		name    string
-		state   stateName
-		table   qTable
-		want    actions
-		wantErr bool
+		name          string
+		state         stateName
+		learningState *learningState
+		want          actions
+		wantErr       bool
 	}{
 		{
-			name:    "no entry for this state yet",
-			state:   "state1",
-			table:   qTable{},
+			name:  "no entry for this state yet",
+			state: "state1",
+			learningState: &learningState{
+				Table: qTable{},
+			},
 			want:    allActions,
 			wantErr: false,
 		},
 		{
 			name:  "choose cheapest actions",
 			state: "state1",
-			table: qTable{
-				"state1": {
-					actionNone:          inf.NewDec(1, 0),
-					actionHorizontal:    inf.NewDec(1, 0),
-					actionVertical:      inf.NewDec(2, 0),
-					actionHybrid:        inf.NewDec(1, 0),
-					actionHybridInverse: inf.NewDec(15, 1),
+			learningState: &learningState{
+				Table: qTable{
+					"state1": {
+						actionNone:          inf.NewDec(1, 0),
+						actionHorizontal:    inf.NewDec(1, 0),
+						actionVertical:      inf.NewDec(2, 0),
+						actionHybrid:        inf.NewDec(1, 0),
+						actionHybridInverse: inf.NewDec(15, 1),
+					},
 				},
 			},
 			want: actions{
@@ -199,7 +203,7 @@ func TestQLearning_GetGreedyActions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			learningState, err := encodeQTable(tt.table)
+			learningState, err := encodeLearningState(tt.learningState)
 			if err != nil {
 				t.Errorf("QLearning.GetGreedyActions() q-table encoding error = %v", err)
 			}

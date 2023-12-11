@@ -17,7 +17,8 @@ type State struct {
 
 // ScalingDecision represents the next desired state
 type ScalingDecision struct {
-	Replicas int32
+	Description string
+	Replicas    int32
 	ContainerResources
 }
 

@@ -7,16 +7,19 @@ import (
 	"io"
 	"math"
 
+	"github.com/go-logr/logr"
 	"gopkg.in/inf.v0"
 )
 
 type QLearning struct {
 	cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec
 	allActions                                                  actions
+	logger                                                      logr.Logger
 }
 
-func NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec, possibleActions actions) *QLearning {
+func NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec, possibleActions actions, logger logr.Logger) *QLearning {
 	return &QLearning{
+		logger:                   logger,
 		allActions:               possibleActions,
 		cpuCost:                  cpuCost,
 		memoryCost:               memoryCost,
@@ -29,18 +32,46 @@ func NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *i
 type qTable map[stateName]qTableRow
 type qTableRow map[action]*inf.Dec
 
+type learningState struct {
+	Table          qTable
+	PreviousState  *state
+	PreviousAction *action
+}
+
 var initialValue = inf.NewDec(0, 0)
 
-func (l *QLearning) Update(previousState, currentState *state, previousAction *action, learningState []byte) ([]byte, error) {
-	if previousAction == nil || previousState == nil {
-		return learningState, nil
-	}
-
-	decoded, err := decodeToQTable(learningState)
+func (l *QLearning) Update(currentState *state, currentAction *action, learningStateEncoded []byte) ([]byte, error) {
+	ls, err := decodeToLearningState(learningStateEncoded)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode learning state, %w", err)
 	}
-	table := *decoded
+
+	l.logger.Info("current learning state", "learning state", ls)
+
+	table := ls.Table
+	previousState := ls.PreviousState
+	previousAction := ls.PreviousAction
+
+	if previousState == nil || previousAction == nil {
+		previousState = currentState
+		previousAction = currentAction
+
+		newLearningState := &learningState{
+			Table:          make(qTable),
+			PreviousState:  previousState,
+			PreviousAction: previousAction,
+		}
+
+		encoded, err := encodeLearningState(newLearningState)
+		if err != nil {
+			return nil, fmt.Errorf("cannot encode learning state, %w", err)
+		}
+		return encoded, nil
+	}
+
+	if table == nil {
+		table = make(qTable)
+	}
 
 	if _, ok := table[previousState.Name]; !ok {
 		l.initializeRow(previousState.Name, table)
@@ -59,8 +90,9 @@ func (l *QLearning) Update(previousState, currentState *state, previousAction *a
 		return nil, fmt.Errorf("cannot calculate new value for q table, %w", err)
 	}
 	table[previousState.Name][*previousAction] = newValue
+	ls.Table = table
 
-	encoded, err := encodeQTable(table)
+	encoded, err := encodeLearningState(ls)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode learning state, %w", err)
 	}
@@ -69,11 +101,11 @@ func (l *QLearning) Update(previousState, currentState *state, previousAction *a
 }
 
 func (l *QLearning) GetGreedyActions(state stateName, learningState []byte) (actions, error) {
-	decoded, err := decodeToQTable(learningState)
+	ls, err := decodeToLearningState(learningState)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode learning state, %w", err)
 	}
-	table := *decoded
+	table := ls.Table
 
 	greedyActions := make(actions, 0)
 	bestValue := bestActionValueInState(state, table)
@@ -166,8 +198,8 @@ func (l *QLearning) initializeRow(name stateName, table qTable) {
 	table[name] = row
 }
 
-func decodeToQTable(encoded []byte) (*qTable, error) {
-	table := new(qTable)
+func decodeToLearningState(encoded []byte) (*learningState, error) {
+	table := new(learningState)
 
 	buffer := bytes.NewBuffer(encoded)
 	decoder := gob.NewDecoder(buffer)
@@ -180,11 +212,11 @@ func decodeToQTable(encoded []byte) (*qTable, error) {
 	return table, nil
 }
 
-func encodeQTable(table qTable) ([]byte, error) {
+func encodeLearningState(s *learningState) ([]byte, error) {
 	buffer := new(bytes.Buffer)
 	encoder := gob.NewEncoder(buffer)
 
-	err := encoder.Encode(table)
+	err := encoder.Encode(s)
 	if err != nil {
 		return nil, err
 	}

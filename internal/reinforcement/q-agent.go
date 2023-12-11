@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/go-logr/logr"
 	"github.com/iljarotar/hybrid-scaler/internal/scaling"
 	"github.com/iljarotar/hybrid-scaler/internal/strategy"
 	"gopkg.in/inf.v0"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type action string
@@ -43,19 +45,20 @@ type state struct {
 
 type qAgent struct {
 	QLearning
+	logger          logr.Logger
 	epsilon         float64
-	previousAction  *action
 	possibleActions actions
-	previousState   *state
 	// these ratios are needed in case one of requests or limits at some point hits a limit and thereby changes the initial ratio
 	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio *inf.Dec
 }
 
 func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec) *qAgent {
 	possibleActions := allActions
-	qLearning := NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma, possibleActions)
+	logger := log.Log.WithName("q-learning agent")
+	qLearning := NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma, possibleActions, logger)
 
 	return &qAgent{
+		logger:          logger,
 		QLearning:       *qLearning,
 		epsilon:         0,
 		possibleActions: possibleActions,
@@ -63,19 +66,12 @@ func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.
 }
 
 func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*strategy.ScalingDecision, []byte, error) {
-	if a.cpuLimitsToRequestsRatio == nil || a.memoryLimitsToRequestsRatio == nil {
-		err := a.initializeLimitsToRequestRatios(state)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	s, err := convertState(state)
+	err := a.initializeLimitsToRequestRatios(state)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	newLearningState, err := a.Update(a.previousState, s, a.previousAction, learningState)
+	s, err := convertState(state)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,8 +100,12 @@ func (a *qAgent) MakeDecision(state *strategy.State, learningState []byte) (*str
 		return nil, nil, err
 	}
 
-	a.previousAction = action
-	a.previousState = s
+	newLearningState, err := a.Update(s, action, learningState)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	a.logger.Info("scaling decision", "decision", decision, "action", action, "state", s, "greedy", greedy)
 
 	return decision, newLearningState, nil
 }
@@ -191,25 +191,34 @@ func convertState(s *strategy.State) (*state, error) {
 }
 
 func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strategy.ScalingDecision, error) {
-	noChange := &strategy.ScalingDecision{
+	decision := &strategy.ScalingDecision{
 		Replicas:           s.Replicas,
 		ContainerResources: s.ContainerResources,
 	}
 
+	var err error
 	switch chosenAction {
 	case actionNone:
-		return noChange, nil
+		err = nil
+
 	case actionHorizontal:
-		return scaling.Horizontal(s)
+		decision, err = scaling.Horizontal(s)
+
 	case actionVertical:
-		return scaling.Vertical(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+		decision, err = scaling.Vertical(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+
 	case actionHybrid:
-		return scaling.Hybrid(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+		decision, err = scaling.Hybrid(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+
 	case actionHybridInverse:
-		return scaling.HybridInverse(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+		decision, err = scaling.HybridInverse(s, a.cpuLimitsToRequestsRatio, a.memoryLimitsToRequestsRatio)
+
 	default:
-		return noChange, nil
+		return decision, nil
 	}
+
+	decision.Description = string(chosenAction)
+	return decision, err
 }
 
 func getRandomActionFrom(as actions) (*action, error) {
