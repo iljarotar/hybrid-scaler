@@ -241,5 +241,6 @@ func (l *QLearning) newQValue(currentValue, alpha, gamma *inf.Dec, s *state, tab
 	difference := new(inf.Dec).Mul(l.alpha, newCostEstimate)
 
 	newValue := new(inf.Dec).Add(currentValue, difference)
+	newValue.Round(newValue, 4, inf.RoundHalfUp)
 	return newValue, nil
 }
