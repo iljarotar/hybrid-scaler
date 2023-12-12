@@ -123,7 +123,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var averageCpuUsage float64
 	var averageMemoryUsage float64
 	for _, pod := range pods {
-		query := fmt.Sprintf(`container_cpu_usage_seconds_total{pod="%s", container!=""}`, pod.Name)
+		query := fmt.Sprintf(`sum(rate(container_cpu_usage_seconds_total{pod="%s"}[5m])) by (pod)`, pod.Name)
 		res, _, err := r.PromAPI.Query(ctx, query, time.Now())
 		if err != nil {
 			logger.Error(err, "prometheus query error", "response", res)
@@ -132,20 +132,17 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		switch resTyped := res.(type) {
 		case model.Vector:
-			if len(resTyped) < 1 {
-				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+			if len(resTyped) != 1 {
+				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result", resTyped)
 				return result, nil
 			}
-
-			for _, sample := range resTyped {
-				averageCpuUsage += float64(sample.Value)
-			}
+			averageCpuUsage += float64(resTyped[0].Value)
 		default:
-			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result type", resTyped.Type().String())
+			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result", resTyped)
 			return result, nil
 		}
 
-		query = fmt.Sprintf(`container_memory_working_set_bytes{pod="%s", container!=""}`, pod.Name)
+		query = fmt.Sprintf(`sum(container_memory_working_set_bytes{pod="%s"}) by (pod)`, pod.Name)
 		res, _, err = r.PromAPI.Query(ctx, query, time.Now())
 		if err != nil {
 			logger.Error(err, "prometheus query error", "response", res)
@@ -154,16 +151,14 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		switch resTyped := res.(type) {
 		case model.Vector:
-			if len(resTyped) < 1 {
-				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query)
+			if len(resTyped) != 1 {
+				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result", resTyped)
 				return result, nil
 			}
 
-			for _, sample := range resTyped {
-				averageMemoryUsage += float64(sample.Value)
-			}
+			averageMemoryUsage += float64(resTyped[0].Value)
 		default:
-			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result type", resTyped.Type().String())
+			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result", resTyped)
 			return result, nil
 		}
 	}
