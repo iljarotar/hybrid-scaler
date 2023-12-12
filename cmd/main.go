@@ -43,8 +43,6 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
-	// prometheusURL = "http://prometheus-k8s.monitoring.svc.cluster.local:9090"
-	prometheusURL = "http://localhost:9090" // only for local development
 )
 
 func init() {
@@ -57,9 +55,11 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var prometheusAddress string
 	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&prometheusAddress, "prometheus-address", "http://prometheus-k8s.monitoring.svc.cluster.local:9090", "The address of prometheus monitoring")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -96,9 +96,8 @@ func main() {
 	}
 
 	c, err := promclient.NewClient(promclient.Config{
-		Address: prometheusURL,
+		Address: prometheusAddress,
 	})
-
 	promAPI := promv1.NewAPI(c)
 
 	if err = (&controller.HybridScalerReconciler{
