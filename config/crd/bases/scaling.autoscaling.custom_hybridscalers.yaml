@@ -86,6 +86,18 @@ spec:
                 type: object
               resourcePolicy:
                 properties:
+                  limitsToRequestsRatioCPU:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  limitsToRequestsRatioMemory:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
                   maxAllowed:
                     additionalProperties:
                       anyOf:
@@ -112,6 +124,8 @@ spec:
                       type: integer
                     type: object
                 required:
+                - limitsToRequestsRatioCPU
+                - limitsToRequestsRatioMemory
                 - maxAllowed
                 - minAllowed
                 - targetUtilization

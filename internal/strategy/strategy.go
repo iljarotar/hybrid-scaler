@@ -45,8 +45,10 @@ type ContainerResources map[string]Resources
 
 // Constraints represents the scaling constraints
 type Constraints struct {
-	MinReplicas  int32
-	MaxReplicas  int32
-	MinResources ResourcesList
-	MaxResources ResourcesList
+	MinReplicas                 int32
+	MaxReplicas                 int32
+	MinResources                ResourcesList
+	MaxResources                ResourcesList
+	LimitsToRequestsRatioCPU    *inf.Dec
+	LimitsToRequestsRatioMemory *inf.Dec
 }

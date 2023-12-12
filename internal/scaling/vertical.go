@@ -38,10 +38,10 @@ func Vertical(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequest
 	desiredPodCpuRequests.Mul(desiredPodCpuRequests, overprovisioningFactor)
 	minCpu := s.Constraints.MinResources.CPU
 	maxCpu := s.Constraints.MaxResources.CPU
-
 	desiredPodCpuRequests = limitValue(desiredPodCpuRequests, minCpu, maxCpu)
+
 	desiredPodCpuLimits := new(inf.Dec).Mul(desiredPodCpuRequests, cpuLimitsToRequestsRatio)
-	desiredPodCpuLimits = limitValue(desiredPodCpuLimits, minCpu, maxCpu)
+	desiredPodCpuLimits = limitValue(desiredPodCpuLimits, desiredPodCpuRequests, maxCpu)
 
 	memoryCurrentToTargetRatio, err := currentToTargetUtilizationRatio(s.PodMetrics.ResourceUsage.Memory, podMemoryRequests, s.TargetUtilization.Memory)
 	if err != nil {
@@ -52,29 +52,13 @@ func Vertical(s *strategy.State, cpuLimitsToRequestsRatio, memoryLimitsToRequest
 	desiredPodMemoryRequests.Mul(desiredPodMemoryRequests, overprovisioningFactor)
 	minMemory := s.Constraints.MinResources.Memory
 	maxMemory := s.Constraints.MaxResources.Memory
-
 	desiredPodMemoryRequests = limitValue(desiredPodMemoryRequests, minMemory, maxMemory)
+
 	desiredPodMemoryLimits := new(inf.Dec).Mul(desiredPodMemoryRequests, memoryLimitsToRequestsRatio)
-	desiredPodMemoryLimits = limitValue(desiredPodMemoryLimits, minMemory, maxMemory)
+	desiredPodMemoryLimits = limitValue(desiredPodMemoryLimits, desiredPodMemoryRequests, maxMemory)
 
 	cpuRounder := inf.RoundHalfUp
 	memoryRounder := inf.RoundHalfUp
-
-	if desiredPodCpuRequests.Cmp(minCpu) == 0 {
-		cpuRounder = inf.RoundCeil
-	}
-
-	if desiredPodCpuLimits.Cmp(maxCpu) == 0 {
-		cpuRounder = inf.RoundDown
-	}
-
-	if desiredPodMemoryRequests.Cmp(minMemory) == 0 {
-		memoryRounder = inf.RoundCeil
-	}
-
-	if desiredPodMemoryLimits.Cmp(maxMemory) == 0 {
-		memoryRounder = inf.RoundDown
-	}
 
 	for name, resources := range s.ContainerResources {
 		cpuRequests := resources.Requests.CPU

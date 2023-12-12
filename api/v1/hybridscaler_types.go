@@ -44,9 +44,11 @@ var (
 )
 
 type ResourcePolicy struct {
-	MinAllowed        corev1.ResourceList           `json:"minAllowed"`
-	MaxAllowed        corev1.ResourceList           `json:"maxAllowed"`
-	TargetUtilization map[corev1.ResourceName]int32 `json:"targetUtilization"`
+	MinAllowed                  corev1.ResourceList           `json:"minAllowed"`
+	MaxAllowed                  corev1.ResourceList           `json:"maxAllowed"`
+	TargetUtilization           map[corev1.ResourceName]int32 `json:"targetUtilization"`
+	LimitsToRequestsRatioCPU    resource.Quantity             `json:"limitsToRequestsRatioCPU"`
+	LimitsToRequestsRatioMemory resource.Quantity             `json:"limitsToRequestsRatioMemory"`
 }
 
 type ContainerResources struct {

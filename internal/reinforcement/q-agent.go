@@ -189,10 +189,7 @@ func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strateg
 		ContainerResources: s.ContainerResources,
 	}
 
-	cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio, err := getLimitsToRequestsRatio(s)
-	if err != nil {
-		return nil, err
-	}
+	var err error
 
 	switch chosenAction {
 	case actionNone:
@@ -202,13 +199,13 @@ func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strateg
 		decision, err = scaling.Horizontal(s)
 
 	case actionVertical:
-		decision, err = scaling.Vertical(s, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio)
+		decision, err = scaling.Vertical(s, s.LimitsToRequestsRatioCPU, s.LimitsToRequestsRatioMemory)
 
 	case actionHybrid:
-		decision, err = scaling.Hybrid(s, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio)
+		decision, err = scaling.Hybrid(s, s.LimitsToRequestsRatioCPU, s.LimitsToRequestsRatioMemory)
 
 	case actionHybridInverse:
-		decision, err = scaling.HybridInverse(s, cpuLimitsToRequestsRatio, memoryLimitsToRequestsRatio)
+		decision, err = scaling.HybridInverse(s, s.LimitsToRequestsRatioCPU, s.LimitsToRequestsRatioMemory)
 
 	default:
 		return decision, nil

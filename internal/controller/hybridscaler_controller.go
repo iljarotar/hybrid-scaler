@@ -354,6 +354,8 @@ func prepareState(status scalingv1.HybridScalerStatus, spec scalingv1.HybridScal
 			CPU:    spec.ResourcePolicy.MaxAllowed.Cpu().AsDec(),
 			Memory: spec.ResourcePolicy.MaxAllowed.Memory().AsDec(),
 		},
+		LimitsToRequestsRatioCPU:    spec.ResourcePolicy.LimitsToRequestsRatioCPU.AsDec(),
+		LimitsToRequestsRatioMemory: spec.ResourcePolicy.LimitsToRequestsRatioMemory.AsDec(),
 	}
 
 	targetCpuUtilization, ok := spec.ResourcePolicy.TargetUtilization[corev1.ResourceCPU]

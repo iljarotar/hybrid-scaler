@@ -141,6 +141,8 @@ func Test_prepareState(t *testing.T) {
 						corev1.ResourceCPU:    50,
 						corev1.ResourceMemory: 80,
 					},
+					LimitsToRequestsRatioCPU:    resource.MustParse("2"),
+					LimitsToRequestsRatioMemory: resource.MustParse("2"),
 				},
 			},
 			want: &strategy.State{
@@ -178,6 +180,8 @@ func Test_prepareState(t *testing.T) {
 						CPU:    inf.NewDec(4, 0),
 						Memory: inf.NewDec(8, -9),
 					},
+					LimitsToRequestsRatioCPU:    inf.NewDec(2, 0),
+					LimitsToRequestsRatioMemory: inf.NewDec(2, 0),
 				},
 				PodMetrics: strategy.PodMetrics{
 					ResourceUsage: strategy.ResourcesList{
