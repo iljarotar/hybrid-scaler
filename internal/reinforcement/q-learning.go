@@ -46,7 +46,7 @@ func (l *QLearning) Update(currentState *state, currentAction *action, learningS
 		return nil, fmt.Errorf("cannot decode learning state, %w", err)
 	}
 
-	l.logger.Info("new learning state", "learning state", ls)
+	l.logger.Info("current learning state", "learning state", ls)
 
 	table := ls.Table
 	previousState := ls.PreviousState
