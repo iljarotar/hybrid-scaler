@@ -31,7 +31,7 @@ var (
 )
 
 // stateName represents a state as a string of the form
-// <replicas>_<cpu-requests>_<memory-requests>_<cpu-utilization>_<memory-utilization>
+// <replicas>_<cpu-requests>_<memory-requests>_<cpu-utilization-ratio>_<memory-utilization-ratio>
 type stateName string
 
 type state struct {
