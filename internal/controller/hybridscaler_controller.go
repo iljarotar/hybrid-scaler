@@ -81,11 +81,11 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Error(err, "no scaler found", "namespaced name", req.NamespacedName)
-			return result, client.IgnoreNotFound(err)
+			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 
 		logger.Error(err, "cannot fetch scaler", "namespaced name", req.NamespacedName)
-		return result, nil
+		return ctrl.Result{}, nil
 	}
 	if scaler.Spec.Interval != nil {
 		result.RequeueAfter = time.Duration(*scaler.Spec.Interval) * time.Second
