@@ -15,11 +15,11 @@ import (
 type action string
 
 const (
-	actionNone          action = "NONE"
-	actionVertical      action = "VERTICAL"
-	actionHorizontal    action = "HORIZONAL"
-	actionHybrid        action = "HYBRID"
-	actionHybridInverse action = "HYBRID_INVERSE"
+	actionNone           action = "NONE"
+	actionVertical       action = "VERTICAL"
+	actionHorizontal     action = "HORIZONAL"
+	actionHybrid         action = "HYBRID"
+	actionHybridOpposite action = "HYBRID_OPPOSITE"
 )
 
 type actions []action
@@ -27,7 +27,7 @@ type actions []action
 var (
 	// percentageQuantum is used to discretize the resource usage very roughly
 	percentageQuantum = inf.NewDec(25, 0)
-	allActions        = []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridInverse}
+	allActions        = []action{actionNone, actionHorizontal, actionVertical, actionHybrid, actionHybridOpposite}
 )
 
 // stateName represents a state as a string of the form
@@ -204,8 +204,8 @@ func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strateg
 	case actionHybrid:
 		decision, err = scaling.Hybrid(s, s.LimitsToRequestsRatioCPU, s.LimitsToRequestsRatioMemory)
 
-	case actionHybridInverse:
-		decision, err = scaling.HybridInverse(s, s.LimitsToRequestsRatioCPU, s.LimitsToRequestsRatioMemory)
+	case actionHybridOpposite:
+		decision, err = scaling.HybridOpposite(s, s.LimitsToRequestsRatioCPU, s.LimitsToRequestsRatioMemory)
 
 	default:
 		return decision, nil

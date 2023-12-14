@@ -9,7 +9,7 @@ import (
 	"gopkg.in/inf.v0"
 )
 
-func TestHybridInverse(t *testing.T) {
+func TestHybridOpposite(t *testing.T) {
 	tests := []struct {
 		name                                                  string
 		state                                                 *strategy.State
@@ -137,7 +137,7 @@ func TestHybridInverse(t *testing.T) {
 			cpuLimitsToRequestsRatio:    inf.NewDec(2, 0),
 			memoryLimitsToRequestsRatio: inf.NewDec(2, 0),
 			want: &strategy.ScalingDecision{
-				Replicas: 4,
+				Replicas: 6,
 				ContainerResources: strategy.ContainerResources{
 					"container": {
 						Requests: strategy.ResourcesList{
@@ -221,16 +221,84 @@ func TestHybridInverse(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "one replica down",
+			state: &strategy.State{
+				Replicas: 6,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(400, 0),
+							Memory: inf.NewDec(400, 0),
+						},
+					},
+				},
+				Constraints: strategy.Constraints{
+					MinReplicas: 1,
+					MaxReplicas: 10,
+					MinResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(50, 0),
+						Memory: inf.NewDec(50, 0),
+					},
+					MaxResources: strategy.ResourcesList{
+						CPU:    inf.NewDec(500, 0),
+						Memory: inf.NewDec(500, 0),
+					},
+				},
+				PodMetrics: strategy.PodMetrics{
+					ResourceUsage: strategy.ResourcesList{
+						CPU:    inf.NewDec(115, 0),
+						Memory: inf.NewDec(115, 0),
+					},
+					Resources: strategy.Resources{
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(200, 0),
+							Memory: inf.NewDec(200, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(400, 0),
+							Memory: inf.NewDec(400, 0),
+						},
+					},
+				},
+				TargetUtilization: strategy.ResourcesList{
+					CPU:    inf.NewDec(60, 2),
+					Memory: inf.NewDec(60, 2),
+				},
+			},
+			cpuLimitsToRequestsRatio:    inf.NewDec(2, 0),
+			memoryLimitsToRequestsRatio: inf.NewDec(2, 0),
+			want: &strategy.ScalingDecision{
+				Replicas: 5,
+				ContainerResources: strategy.ContainerResources{
+					"container": {
+						Requests: strategy.ResourcesList{
+							CPU:    inf.NewDec(253, 0),
+							Memory: inf.NewDec(253, 0),
+						},
+						Limits: strategy.ResourcesList{
+							CPU:    inf.NewDec(500, 0),
+							Memory: inf.NewDec(500, 0),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := HybridInverse(tt.state, tt.cpuLimitsToRequestsRatio, tt.memoryLimitsToRequestsRatio)
+			got, err := HybridOpposite(tt.state, tt.cpuLimitsToRequestsRatio, tt.memoryLimitsToRequestsRatio)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("HybridInverse() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("HybridOpposite() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if diff := cmp.Diff(tt.want, got, cmp.Comparer(decComparer)); diff != "" {
-				t.Errorf("HybridInverse() %v", diff)
+				t.Errorf("HybridOpposite() %v", diff)
 			}
 		})
 	}
