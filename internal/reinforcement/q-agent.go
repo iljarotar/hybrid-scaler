@@ -46,11 +46,11 @@ type state struct {
 type qAgent struct {
 	QLearning
 	logger          logr.Logger
-	epsilon         float64
+	epsilon         *inf.Dec
 	possibleActions actions
 }
 
-func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.Dec) *qAgent {
+func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma, epsilon *inf.Dec) *qAgent {
 	possibleActions := allActions
 	logger := log.Log.WithName("q-learning agent")
 	qLearning := NewQLearning(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma, possibleActions, logger)
@@ -58,7 +58,7 @@ func NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma *inf.
 	return &qAgent{
 		logger:          logger,
 		QLearning:       *qLearning,
-		epsilon:         0,
+		epsilon:         epsilon,
 		possibleActions: possibleActions,
 	}
 }
@@ -227,15 +227,15 @@ func getRandomActionFrom(as actions) (*action, error) {
 	return &a, nil
 }
 
-func iAmGreedy(epsilon float64) (bool, error) {
+func iAmGreedy(epsilon *inf.Dec) (bool, error) {
 	random, err := rand.Int(rand.Reader, big.NewInt(100))
 	if err != nil {
 		return false, err
 	}
 
-	val := float64(random.Int64())
+	randomDec := new(inf.Dec).SetUnscaledBig(random).SetScale(2)
 
-	return val >= epsilon*100, nil
+	return randomDec.Cmp(epsilon) >= 0, nil
 }
 
 func quantizePercentage(value, quantum *inf.Dec) int64 {

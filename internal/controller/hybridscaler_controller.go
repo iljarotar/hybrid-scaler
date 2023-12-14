@@ -414,8 +414,9 @@ func getScalingStrategy(learningType scalingv1.LearningType, qParams scalingv1.Q
 		underprovisioningPenalty := qParams.UnderprovisioningPenalty.AsDec()
 		alpha := qParams.LearningRate.AsDec()
 		gamma := qParams.DiscountFactor.AsDec()
+		epsilon := qParams.Epsilon.AsDec()
 
-		return reinforcement.NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma)
+		return reinforcement.NewQAgent(cpuCost, memoryCost, underprovisioningPenalty, alpha, gamma, epsilon)
 	default:
 		return &strategy.NoOp{}
 	}

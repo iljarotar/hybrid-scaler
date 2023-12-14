@@ -201,6 +201,7 @@ func (in *QLearningParams) DeepCopyInto(out *QLearningParams) {
 	*out = *in
 	out.LearningRate = in.LearningRate.DeepCopy()
 	out.DiscountFactor = in.DiscountFactor.DeepCopy()
+	out.Epsilon = in.Epsilon.DeepCopy()
 	out.CpuCost = in.CpuCost.DeepCopy()
 	out.MemoryCost = in.MemoryCost.DeepCopy()
 	out.UnderprovisioningPenalty = in.UnderprovisioningPenalty.DeepCopy()

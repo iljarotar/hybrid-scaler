@@ -59,6 +59,7 @@ type ContainerResources struct {
 type QLearningParams struct {
 	LearningRate             resource.Quantity `json:"learningRate"`
 	DiscountFactor           resource.Quantity `json:"discountFactor"`
+	Epsilon                  resource.Quantity `json:"epsilon"`
 	CpuCost                  resource.Quantity `json:"cpuCost"`
 	MemoryCost               resource.Quantity `json:"memoryCost"`
 	UnderprovisioningPenalty resource.Quantity `json:"underprovisioningPenalty"`
