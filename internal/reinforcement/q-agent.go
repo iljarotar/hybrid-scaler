@@ -228,12 +228,12 @@ func getRandomActionFrom(as actions) (*action, error) {
 }
 
 func iAmGreedy(epsilon *inf.Dec) (bool, error) {
-	random, err := rand.Int(rand.Reader, big.NewInt(100))
+	random, err := rand.Int(rand.Reader, big.NewInt(1000))
 	if err != nil {
 		return false, err
 	}
 
-	randomDec := new(inf.Dec).SetUnscaledBig(random).SetScale(2)
+	randomDec := new(inf.Dec).SetUnscaledBig(random).SetScale(3)
 
 	return randomDec.Cmp(epsilon) >= 0, nil
 }
