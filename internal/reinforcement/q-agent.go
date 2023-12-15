@@ -216,6 +216,10 @@ func (a *qAgent) convertAction(chosenAction action, s *strategy.State) (*strateg
 }
 
 func getRandomActionFrom(as actions) (*action, error) {
+	if len(as) < 1 {
+		return nil, fmt.Errorf("no actions to choose from")
+	}
+
 	index, err := rand.Int(rand.Reader, big.NewInt(int64(len(as))))
 	if err != nil {
 		return nil, err
