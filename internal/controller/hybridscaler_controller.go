@@ -136,8 +136,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		switch resTyped := res.(type) {
 		case model.Vector:
 			if len(resTyped) < 1 {
-				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result", resTyped)
-				return result, nil
+				continue
 			}
 
 			sample := resTyped[0]
@@ -157,8 +156,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		switch resTyped := res.(type) {
 		case model.Vector:
 			if len(resTyped) < 1 {
-				logger.Error(fmt.Errorf("unexpected result length received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result", resTyped)
-				return result, nil
+				continue
 			}
 
 			sample := resTyped[0]
@@ -167,6 +165,16 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			logger.Error(fmt.Errorf("unexpected result type received from prometheus"), "unable to fetch pod metrics", "pod", pod.Name, "query", query, "result", resTyped)
 			return result, nil
 		}
+	}
+
+	if averageCpuUsage == 0 || averageMemoryUsage == 0 {
+		podNames := make([]string, 0)
+		for _, pod := range pods {
+			podNames = append(podNames, pod.Name)
+		}
+
+		logger.Info("skipping due to missing metrics", "pods", podNames)
+		return result, nil
 	}
 
 	averageCpuUsage /= float64(len(pods))
