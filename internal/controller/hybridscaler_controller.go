@@ -126,7 +126,7 @@ func (r *HybridScalerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	var averageCpuUsage float64
 	var averageMemoryUsage float64
 	for _, pod := range pods {
-		query := fmt.Sprintf(`rate(container_cpu_usage_seconds_total{pod="%s"}[5m])`, pod.Name)
+		query := fmt.Sprintf(`rate(container_cpu_usage_seconds_total{pod="%s"}[1m])`, pod.Name)
 		res, _, err := r.PromAPI.Query(ctx, query, time.Now())
 		if err != nil {
 			logger.Error(err, "prometheus query error", "response", res)
