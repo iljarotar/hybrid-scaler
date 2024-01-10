@@ -88,11 +88,10 @@ func TestQLearning_initializeRow(t *testing.T) {
 			want: qTable{
 				"state1": {},
 				"state2": {
-					actionNone:           initialValue,
-					actionHorizontal:     initialValue,
-					actionVertical:       initialValue,
-					actionHybrid:         initialValue,
-					actionHybridOpposite: initialValue,
+					actionNone:       initialValue,
+					actionHorizontal: initialValue,
+					actionVertical:   initialValue,
+					actionHybrid:     initialValue,
 				},
 			},
 		},
@@ -138,14 +137,13 @@ func TestQLearning_bestActionValueInState(t *testing.T) {
 			state: "state1",
 			table: qTable{
 				"state1": {
-					actionNone:           inf.NewDec(1, 0),
-					actionHorizontal:     inf.NewDec(2, 0),
-					actionVertical:       inf.NewDec(3, 0),
-					actionHybrid:         inf.NewDec(4, 0),
-					actionHybridOpposite: inf.NewDec(5, 1),
+					actionNone:       inf.NewDec(1, 0),
+					actionHorizontal: inf.NewDec(2, 0),
+					actionVertical:   inf.NewDec(3, 0),
+					actionHybrid:     inf.NewDec(4, 0),
 				},
 			},
-			want: inf.NewDec(5, 1),
+			want: inf.NewDec(1, 0),
 		},
 	}
 	for _, tt := range tests {
@@ -185,11 +183,10 @@ func TestQLearning_GetGreedyActions(t *testing.T) {
 			learningState: &learningState{
 				Table: qTable{
 					"state1": {
-						actionNone:           inf.NewDec(1, 0),
-						actionHorizontal:     inf.NewDec(1, 0),
-						actionVertical:       inf.NewDec(2, 0),
-						actionHybrid:         inf.NewDec(1, 0),
-						actionHybridOpposite: inf.NewDec(15, 1),
+						actionNone:       inf.NewDec(1, 0),
+						actionHorizontal: inf.NewDec(1, 0),
+						actionVertical:   inf.NewDec(2, 0),
+						actionHybrid:     inf.NewDec(1, 0),
 					},
 				},
 			},
